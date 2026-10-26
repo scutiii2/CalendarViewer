@@ -277,6 +277,8 @@
   <label><input type="checkbox" id="mute-all"> Mute all alerts</label>
   <div id="notify-status" role="status"></div>
   <button id="notify-enable" type="button" hidden>Enable system notifications</button>
+  <label id="startup-row" hidden><input type="checkbox" id="startup-toggle"> Start with Windows</label>
+  <div id="startup-note" class="alert-hint" hidden>The server starts in the background at sign-in so alerts work with the browser closed.</div>
 </div></aside>
 <main><div id="cal"></div><div id="calendar-loading" aria-hidden="true" hidden></div></main>
 </div>
@@ -720,6 +722,33 @@ function askNotificationPermission() {
 }
 document.getElementById('notify-enable').onclick = askNotificationPermission;
 updateNotifyPanel();
+
+// -- Start with Windows --
+const startupToggle = document.getElementById('startup-toggle');
+function showStartup(status) {
+  document.getElementById('startup-row').hidden = !status.supported;
+  document.getElementById('startup-note').hidden = !status.supported;
+  startupToggle.checked = !!status.enabled;
+}
+
+async function loadStartup() {
+  try { showStartup(await (await api('/api/startup')).json()); } catch { /* No server: the toggle stays hidden. */ }
+}
+
+startupToggle.onchange = async () => {
+  const wanted = startupToggle.checked;
+  startupToggle.disabled = true;
+  try {
+    const r = await api('/api/startup', { method: 'POST', headers: { 'X-Calendar-Action': '1' }, body: JSON.stringify({ enabled: wanted }) });
+    showStartup(await r.json());
+    setStatus(wanted ? 'Server will start with Windows.' : 'Automatic startup turned off.');
+  } catch (e) {
+    startupToggle.checked = !wanted;
+    setStatus('Startup change failed: ' + e.message);
+  }
+  startupToggle.disabled = false;
+};
+loadStartup();
 
 // -- Scheduler --
 function runAlertCheck(silent) {

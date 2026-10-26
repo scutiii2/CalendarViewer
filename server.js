@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT) || 3000;
 const FEEDS_FILE = path.join(__dirname, 'feeds.json');
 const { createAlertService } = require('./alerts');
+const { createStartupService } = require('./startup');
 
 const readFeeds = () => {
   try { return JSON.parse(fs.readFileSync(FEEDS_FILE, 'utf8')); } catch { return []; }
@@ -38,6 +39,16 @@ const alerts = createAlertService({
   firedFile: path.join(__dirname, 'alerts-fired.json')
 });
 
+const startup = createStartupService();
+
+// Actions that change the machine must come from this page: block other websites and DNS rebinding.
+const isLocalAction = req => {
+  const origins = [`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`];
+  const hosts = [`localhost:${PORT}`, `127.0.0.1:${PORT}`];
+  return req.headers['x-calendar-action'] === '1' && hosts.includes(req.headers.host) &&
+    (!req.headers.origin || origins.includes(req.headers.origin));
+};
+
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
@@ -47,6 +58,15 @@ http.createServer(async (req, res) => {
 
     if (req.method === 'GET' && url.pathname === '/alert-logic.js') {
       return send(res, 200, fs.readFileSync(path.join(__dirname, 'alert-logic.js')), 'text/javascript; charset=utf-8');
+    }
+
+    if (url.pathname === '/api/startup') {
+      if (req.method === 'GET') return sendJson(res, 200, startup.status());
+      if (req.method === 'POST') {
+        if (!isLocalAction(req)) return send(res, 403, 'Forbidden');
+        const { enabled } = JSON.parse(await readBody(req));
+        return sendJson(res, 200, await startup.set(!!enabled));
+      }
     }
 
     if (url.pathname === '/api/alerts/status' && req.method === 'GET') return sendJson(res, 200, alerts.status());

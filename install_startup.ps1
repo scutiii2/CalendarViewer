@@ -1,4 +1,4 @@
-param([switch]$Remove)
+param([switch]$Remove, [switch]$NoBrowser)
 
 $ErrorActionPreference = 'Stop'
 try {
@@ -18,12 +18,14 @@ try {
         $shortcut = $shell.CreateShortcut($shortcutPath)
         $shortcut.TargetPath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
         $shortcut.Arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $launcher + '"'
+        if ($NoBrowser) { $shortcut.Arguments += ' -NoBrowser' }
         $shortcut.WorkingDirectory = $PSScriptRoot
         $shortcut.Description = 'Start ICS Calendar Viewer and open the calendar at sign-in'
         $shortcut.WindowStyle = 7
         $shortcut.Save()
         Write-Host 'Automatic startup enabled for your Windows account.'
-        Write-Host 'The calendar server and browser will open when you next sign in.'
+        if ($NoBrowser) { Write-Host 'The calendar server will start when you next sign in.' }
+        else { Write-Host 'The calendar server and browser will open when you next sign in.' }
         Write-Host 'Keep this application folder in its current location.'
     }
 } catch {

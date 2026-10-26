@@ -42,6 +42,8 @@ The server starts and the calendar opens in your browser when you next sign in a
 It runs as your account, without administrator privileges; it does not run before sign-in.
 Running the installer again updates the same shortcut.
 
+You can also turn startup on or off from the calendar page with the **Start with Windows** checkbox in the sidebar. The checkbox starts only the server at sign-in and does not open a browser, which is enough for Windows alert notifications. `install_startup.bat` keeps opening the browser too. The checkbox is available only when the page is served by this application's server on `localhost`.
+
 To disable automatic startup, double-click `remove_startup.bat`, or open a terminal in this folder and run:
 
 ```bat
