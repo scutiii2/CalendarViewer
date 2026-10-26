@@ -328,3 +328,31 @@
   .sb-hours-range { display: flex; align-items: center; gap: 6px; color: var(--muted); }
   .sb-hours input[type=time] { flex: 1; min-width: 0; min-height: 28px; padding: 0 4px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; font: inherit; font-size: 12px; }
   @media (max-width: 800px) { .up-next { display: none; } #cal.show-rail .fc-view-harness { margin-right: 0; } }
+  /* Event details dialog */
+  .dlg-bar { height: 4px; background: #16833b; }
+  .dlg-bar[data-state=done] { background: #808080; }
+  #dlg .dialog-body { max-height: min(776px, calc(100dvh - 52px)); }
+  .event-status { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: #16833b; }
+  .event-status[data-state=ended], .event-status[data-state=canceled] { color: var(--muted); }
+  :root[data-theme=dark] .event-status[data-state=upcoming], :root[data-theme=dark] .event-status[data-state=live] { color: #6fd08c; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme=light]) .event-status[data-state=upcoming], :root:not([data-theme=light]) .event-status[data-state=live] { color: #6fd08c; } }
+  #dlg .dialog-close { display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 8px; }
+  .detail-strong { font-weight: 600; }
+  .detail-sub { color: var(--muted); font-size: 13px; }
+  .detail-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 4px; }
+  .detail-actions #join { margin: 0; min-width: 0; padding: 8px 16px; border-radius: 8px; }
+  .detail-copy { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 8px; font-size: 14px; font-weight: 500; }
+  .alert-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 10px; }
+  .alert-head h3 { margin: 0; }
+  .alert-summary { color: var(--muted); font-size: 13px; }
+  .alert-seg { display: flex; gap: 2px; padding: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+  .alert-seg label { position: relative; flex: 1; display: flex; }
+  .alert-seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .alert-seg span { flex: 1; padding: 6px 4px; border-radius: 6px; color: var(--muted); font-size: 13px; text-align: center; }
+  .alert-seg label:has(input:checked) span { background: var(--brand); color: #fff; }
+  .alert-seg label:has(input:focus-visible) span { outline: 2px solid var(--focus); outline-offset: 1px; }
+  #alert-custom:not(:empty) { margin-top: 10px; }
+  .alert-hint:not(:empty) { margin-top: 8px; }
+  #dd.clamped { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .dd-toggle { margin: 6px 0 0; padding: 0; min-height: 0; border: 0; background: none; color: var(--focus); font-size: 13px; }
+  .dd-toggle:hover { background: none; text-decoration: underline; }

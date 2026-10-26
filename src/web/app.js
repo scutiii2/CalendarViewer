@@ -308,11 +308,23 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
     const spansDays = lastDay && lastDay.toDateString() !== event.start.toDateString();
     document.getElementById('event-date').textContent = event.start.toLocaleDateString(undefined, dateOptions) + (spansDays ? ' – ' + lastDay.toLocaleDateString(undefined, dateOptions) : '');
     const timeOptions = { hour: 'numeric', minute: '2-digit' };
-    document.getElementById('event-time').textContent = event.allDay ? 'All day' : event.start.toLocaleTimeString(undefined, timeOptions) + (event.end ? ' – ' + event.end.toLocaleTimeString(undefined, timeOptions) : '');
+    document.getElementById('event-time').textContent = event.allDay ? 'All day' : event.start.toLocaleTimeString(undefined, timeOptions) + (event.end ? ' – ' + event.end.toLocaleTimeString(undefined, timeOptions) + durationText(event.end - event.start) : '');
+    const canceled = /^\s*cancell?ed\b/i.test(event.title);
+    const status = eventStatus(event, canceled);
+    const statusEl = document.getElementById('event-status');
+    statusEl.textContent = status.text;
+    statusEl.dataset.state = status.state;
+    statusEl.hidden = !status.text;
+    document.getElementById('dlg-bar').dataset.state = status.state === 'upcoming' || status.state === 'live' ? 'active' : 'done';
     document.getElementById('location-row').hidden = !p.location;
     renderDetailText(document.getElementById('event-location'), p.location);
     const description = splitDescription(p.description);
-    renderDetailText(document.getElementById('dd'), description.description || 'No additional description.');
+    const dd = document.getElementById('dd');
+    renderDetailText(dd, description.description || 'No additional description.');
+    dd.classList.add('clamped');
+    const ddToggle = document.getElementById('dd-toggle');
+    ddToggle.hidden = true;
+    ddToggle.textContent = 'Show more';
     const footer = document.getElementById('meeting-footer');
     footer.hidden = !description.footer;
     footer.open = false;
@@ -324,11 +336,45 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
     join.hidden = !meeting;
     join.removeAttribute('href');
     if (meeting) join.href = meeting.href;
+    const copyLink = document.getElementById('copy-link');
+    copyLink.hidden = !meeting;
+    copyLink.dataset.href = meeting ? meeting.href : '';
+    copyLink.lastElementChild.textContent = 'Copy link';
     document.getElementById('dlg').showModal();
+    ddToggle.hidden = dd.scrollHeight <= dd.clientHeight + 1;
   }
 });
 calendar.render();
 placeSyncStrip();
+
+function durationText(ms) {
+  const minutes = Math.round(ms / 60000);
+  if (!(minutes > 0)) return '';
+  const h = Math.floor(minutes / 60), m = minutes % 60;
+  return ' · ' + (h ? h + ' h' : '') + (h && m ? ' ' : '') + (m ? m + ' min' : '');
+}
+
+function eventStatus(event, canceled) {
+  if (canceled) return { state: 'canceled', text: 'Canceled' };
+  if (event.allDay) return { state: 'upcoming', text: '' };
+  const now = Date.now();
+  const start = event.start.getTime();
+  if (Number(eventFinishTime(event)) <= now) return { state: 'ended', text: 'Ended' };
+  if (start <= now) return { state: 'live', text: 'In progress' };
+  return { state: 'upcoming', text: 'Starts in ' + formatRemaining(start - now) };
+}
+
+document.getElementById('dd-toggle').onclick = e => {
+  const dd = document.getElementById('dd');
+  const open = dd.classList.toggle('clamped') === false;
+  e.currentTarget.textContent = open ? 'Show less' : 'Show more';
+};
+document.getElementById('copy-link').onclick = async e => {
+  const button = e.currentTarget;
+  try { await navigator.clipboard.writeText(button.dataset.href); button.lastElementChild.textContent = 'Copied'; }
+  catch { button.lastElementChild.textContent = 'Copy failed'; }
+  setTimeout(() => { button.lastElementChild.textContent = 'Copy link'; }, 1500);
+};
 
 // ---- Day view "Up next" rail (lives outside #cal, which FullCalendar owns) ----
 function showUpNext(show) {
@@ -546,7 +592,9 @@ function renderEventAlerts() {
   const mode = override ? override.mode : 'default';
   document.querySelectorAll('input[name=alert-mode]').forEach(r => { r.checked = r.value === mode; });
   const defaults = calendarDefaultOffsets(alertRules, sourceKeys);
-  document.getElementById('alert-default-text').textContent = defaults.length ? '(' + defaults.map(formatOffset).join(', ') + ')' : '(none)';
+  const effective = alertRules.global.muted ? [] : mode === 'muted' ? [] : mode === 'custom' ? override.offsets : defaults;
+  document.getElementById('alert-summary').textContent = alertRules.global.muted ? 'All alerts muted' :
+    mode === 'muted' ? 'Muted' : effective.length ? effective.map(formatOffset).join(', ') : 'No alerts';
   const custom = document.getElementById('alert-custom');
   custom.replaceChildren();
   if (mode === 'custom') {
