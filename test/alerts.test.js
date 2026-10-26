@@ -32,7 +32,7 @@ test('feed alert fires once at the offset and never twice', async () => {
   clock.t += 6 * M; await settle(svc);
   assert.equal(shown.length, 1);
   assert.equal(shown[0].title, 'Feed meeting');
-  assert.ok(shown[0].join.includes('teams.microsoft.com'));
+  assert.equal(new URL(shown[0].join).hostname, 'teams.microsoft.com');
   clock.t += M; await settle(svc);
   assert.equal(shown.length, 1);
 });

@@ -84,8 +84,8 @@ function parseIcs(text) {
     if (tzid && !ICAL.TimezoneService.has(tzid)) ICAL.TimezoneService.register(tz);
   });
   const byUid = new Map();
-  root.getAllSubcomponents('vevent').forEach(c => {
-    const uid = c.getFirstPropertyValue('uid') || String(Math.random());
+  root.getAllSubcomponents('vevent').forEach((c, i) => {
+    const uid = c.getFirstPropertyValue('uid') || 'no-uid-' + i;
     if (!byUid.has(uid)) byUid.set(uid, { master: null, exceptions: [] });
     const g = byUid.get(uid);
     if (c.hasProperty('recurrence-id')) g.exceptions.push(c); else g.master = c;
