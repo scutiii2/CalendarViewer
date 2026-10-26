@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ICS Calendar Viewer</title>
+<script src="/vendor/ical.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<script src="/shared/alert-logic.js"></script>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="app">
+<aside aria-label="Calendar sources">
+<header>
+  <h1>Calendar</h1>
+  <form id="add" aria-label="Add calendar link">
+    <input name="name" aria-label="Calendar label" placeholder="Label (DXC)" size="12">
+    <input name="url" aria-label="ICS link" placeholder="ICS link" size="28" required>
+    <button type="submit">Add link</button>
+  </form>
+  <label id="drop">Drop .ics files here or click to choose
+    <input id="file" type="file" accept=".ics,text/calendar" multiple hidden>
+  </label>
+  <div class="top-actions">
+    <label for="auto-refresh" class="auto-refresh-label">Auto-refresh</label>
+    <select id="auto-refresh">
+      <option value="0">Off</option><option value="1">Every minute</option>
+      <option value="5">Every 5 minutes</option><option value="10">Every 10 minutes</option>
+      <option value="15">Every 15 minutes</option><option value="30">Every 30 minutes</option>
+      <option value="60">Every hour</option>
+    </select>
+    <button id="refresh" class="primary" type="button">Refresh</button>
+    <span id="note" role="status" aria-live="polite"><span id="status"></span></span>
+  </div>
+</header>
+<div class="sidebar-heading">My calendars <span>Sources</span></div><div id="sources"></div>
+<div class="alerts-panel" aria-label="Alert settings">
+  <label><input type="checkbox" id="mute-all"> Mute all alerts</label>
+  <div id="notify-status" role="status"></div>
+  <button id="notify-enable" type="button" hidden>Enable system notifications</button>
+  <label id="startup-row" hidden><input type="checkbox" id="startup-toggle"> Start with Windows</label>
+  <div id="startup-note" class="alert-hint" hidden>The server starts in the background at sign-in so alerts work with the browser closed.</div>
+</div></aside>
+<main><div id="cal"></div><div id="calendar-loading" aria-hidden="true" hidden></div></main>
+</div>
+<dialog id="dlg" aria-labelledby="dt"><div class="dialog-body">
+  <form method="dialog"><button class="icon-button dialog-close" aria-label="Close event details" title="Close">×</button></form>
+  <h2 id="dt"></h2><div id="dm"></div>
+  <div class="detail-row"><svg class="detail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6m10-6v6M3 11h18"/></svg><div><div id="event-date"></div><div id="event-time"></div></div></div>
+  <div id="location-row" class="detail-row"><svg class="detail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg><div id="event-location"></div></div>
+  <a id="join" class="primary" target="_blank" rel="noopener noreferrer" hidden><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="2" y="5" width="13" height="14" rx="3"/><path d="m17 9 5-3v12l-5-3Z"/></svg>Join</a>
+  <section id="alert-section" class="alert-section"><h3>Alerts</h3>
+    <div class="alert-modes" role="radiogroup" aria-label="Alert mode">
+      <label><input type="radio" name="alert-mode" value="default"> Use calendar default <span class="hint" id="alert-default-text"></span></label>
+      <label><input type="radio" name="alert-mode" value="custom"> Custom alerts for this event</label>
+      <label><input type="radio" name="alert-mode" value="muted"> Mute this event</label>
+    </div>
+    <div id="alert-custom"></div>
+    <div class="alert-hint" id="alert-note"></div>
+  </section>
+  <section class="description-section"><h3>Description</h3><pre id="dd"></pre><details id="meeting-footer" class="meeting-footer" hidden><summary>Meeting information &amp; original details</summary><pre id="meeting-footer-text"></pre></details></section>
+</div></dialog>
+<dialog id="cal-alert-dlg" aria-labelledby="cal-alert-title"><div class="dialog-body">
+  <form method="dialog"><button class="icon-button dialog-close" aria-label="Close alert settings" title="Close">×</button></form>
+  <h2 id="cal-alert-title"></h2>
+  <label class="alert-modes"><span><input type="checkbox" id="cal-alert-enabled"> Alerts on for this calendar</span></label>
+  <div id="cal-alert-editor"></div>
+  <p class="alert-hint">Applies to every event in this calendar unless an event has its own setting.</p>
+</div></dialog>
+<div id="toasts" aria-live="assertive"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

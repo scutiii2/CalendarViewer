@@ -4,8 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
-global.ICAL = require('./vendor/ical.min.js');
-const logic = require('./alert-logic.js');
+global.ICAL = require('../../vendor/ical.min.js');
+const logic = require('../shared/alert-logic.js');
 
 const FEED_REFRESH_MS = 5 * 60000;
 const TICK_MS = 30000;
@@ -14,8 +14,8 @@ const b64 = text => Buffer.from(String(text || ''), 'utf8').toString('base64');
 
 function windowsToast(occ, body, onResult) {
   const child = spawn('powershell.exe', [
-    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, 'alert_toast.ps1'),
-    '-Title', b64(occ.title), '-Body', b64(body), '-Url', b64(occ.join)
+    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, '..', '..', 'scripts', 'calendar.ps1'),
+    'toast', '-Title', b64(occ.title), '-Body', b64(body), '-Url', b64(occ.join)
   ], { windowsHide: true, stdio: 'ignore' });
   child.on('error', e => onResult(e.message));
   child.on('exit', code => onResult(code ? 'powershell exited with code ' + code : null));

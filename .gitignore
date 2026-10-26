@@ -1,4 +1,5 @@
 *.ics
+data/
 feeds.json
 alerts-state.json
 alerts-fired.json

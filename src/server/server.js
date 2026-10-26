@@ -1,12 +1,48 @@
-// Local server: serves index.html and fetches ICS links server-side (browsers block them via CORS).
-// Feed links are stored in feeds.json (gitignored). Listens on 127.0.0.1 only.
+// Local server: serves the web page and fetches ICS links server-side (browsers block them via CORS).
+// Feed links are stored in data/feeds.json (gitignored). Listens on 127.0.0.1 only.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT) || 3000;
-const FEEDS_FILE = path.join(__dirname, 'feeds.json');
+const ROOT = path.join(__dirname, '..', '..');
+const DATA_DIR = process.env.CALENDAR_DATA_DIR || path.join(ROOT, 'data'); // the override is for tests
+const FEEDS_FILE = path.join(DATA_DIR, 'feeds.json');
+
+// Earlier versions kept runtime files in the application root. Move them once; never overwrite or lose data.
+function migrateData() {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  if (process.env.CALENDAR_DATA_DIR) return;
+  for (const name of ['feeds.json', 'alerts-state.json', 'alerts-fired.json']) {
+    const from = path.join(ROOT, name), to = path.join(DATA_DIR, name);
+    if (!fs.existsSync(from)) continue;
+    if (fs.existsSync(to)) { console.log(`Both ${name} and data/${name} exist; leaving the old one in place.`); continue; }
+    fs.copyFileSync(from, to);
+    if (fs.statSync(to).size === fs.statSync(from).size) fs.unlinkSync(from);
+  }
+}
+migrateData();
+
+const STATIC_ROOTS = [
+  ['/shared/', path.join(ROOT, 'src', 'shared')],
+  ['/vendor/', path.join(ROOT, 'vendor')],
+  ['/', path.join(ROOT, 'src', 'web')]
+];
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
+
+// Only files inside the three public folders are served; anything that escapes them is refused.
+function staticFile(pathname) {
+  const wanted = pathname === '/' ? '/index.html' : pathname;
+  for (const [prefix, dir] of STATIC_ROOTS) {
+    if (!wanted.startsWith(prefix)) continue;
+    const file = path.resolve(dir, decodeURIComponent(wanted.slice(prefix.length)));
+    const type = TYPES[path.extname(file)];
+    if (type && file.startsWith(dir + path.sep) && fs.existsSync(file) && fs.statSync(file).isFile()) return { file, type };
+    return null;
+  }
+  return null;
+}
 const { createAlertService } = require('./alerts');
 const { createStartupService } = require('./startup');
 
@@ -35,8 +71,8 @@ const alerts = createAlertService({
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.text();
   },
-  stateFile: path.join(__dirname, 'alerts-state.json'),
-  firedFile: path.join(__dirname, 'alerts-fired.json')
+  stateFile: path.join(DATA_DIR, 'alerts-state.json'),
+  firedFile: path.join(DATA_DIR, 'alerts-fired.json')
 });
 
 const startup = createStartupService();
@@ -52,12 +88,9 @@ const isLocalAction = req => {
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
-    if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
-      return send(res, 200, fs.readFileSync(path.join(__dirname, 'index.html')), 'text/html; charset=utf-8');
-    }
-
-    if (req.method === 'GET' && url.pathname === '/alert-logic.js') {
-      return send(res, 200, fs.readFileSync(path.join(__dirname, 'alert-logic.js')), 'text/javascript; charset=utf-8');
+    if (req.method === 'GET') {
+      const asset = staticFile(url.pathname);
+      if (asset) return send(res, 200, fs.readFileSync(asset.file), asset.type);
     }
 
     if (url.pathname === '/api/startup') {

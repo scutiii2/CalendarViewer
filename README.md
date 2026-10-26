@@ -2,6 +2,19 @@
 
 A read-only calendar that combines ICS links and imported `.ics` files in a Teams-inspired interface.
 
+## Project layout
+
+```text
+calendar.bat        double-click launcher (menu), or: calendar.bat start|stop|startup-on|startup-off|zip
+scripts/            calendar.ps1 (start, stop, startup, toast) and make_zip.py
+src/server/         server.js (entry point), alerts.js (background alerts), startup.js
+src/shared/         alert-logic.js, used by both the page and the server
+src/web/            index.html, styles.css, app.js (the calendar page)
+vendor/             ical.min.js (bundled ICS parser)
+test/               run with: node --test
+data/               your feeds and alert state (created at run time, private)
+```
+
 ## Requirements
 
 - Windows with Node.js 18 or newer on PATH. A currently supported Node.js LTS release is recommended.
@@ -12,14 +25,14 @@ No dependency installation or build step is required.
 
 ## Launcher reference
 
-Keep `calendar.bat` and the PowerShell helpers together in the application folder.
+Keep the application folder together: `calendar.bat` runs `scripts\calendar.ps1`.
 Double-click `calendar.bat` for a menu; press Enter to choose the default, option 1.
 
 | Menu option | Command | Action |
 | --- | --- | --- |
 | 1 | `calendar.bat start` | Start or restart the server and open the calendar in your browser. |
 | 2 | `calendar.bat stop` | Stop this application's background server. |
-| 3 | `calendar.bat startup-on` | Start the server automatically at Windows sign-in. Add `--browser` to open the calendar too. |
+| 3 | `calendar.bat startup-on` | Start the server automatically at Windows sign-in. Add `-Browser` to open the calendar too. |
 | 4 | `calendar.bat startup-off` | Turn off automatic startup for your Windows account. |
 | 5 | `calendar.bat zip` | Create a clean distribution ZIP using Python 3. |
 
@@ -31,15 +44,15 @@ After startup, press any key to return to the menu, then choose Q. Closing the l
 
 - Choose option 1 again (or run `calendar.bat start`) to restart the server and reopen the calendar.
 - Choose option 2 (or run `calendar.bat stop`) to stop this application's server.
-- Alternatively, run `node server.js` in a terminal and use Ctrl+C to stop it.
+- Alternatively, run `node src/server/server.js` in a terminal and use Ctrl+C to stop it.
 
 If an older launcher started the server using a relative path, close that server manually once.
 The launchers deliberately avoid stopping processes they cannot identify as this application.
 
 ## Start automatically with Windows
 
-Choose option 3 in `calendar.bat` (or run `calendar.bat startup-on --browser` to also open the calendar at sign-in). It adds one shortcut to your account's Windows Startup folder.
-The server starts when you next sign in after booting Windows, and the calendar opens in your browser only with `--browser`.
+Choose option 3 in `calendar.bat` (or run `calendar.bat startup-on -Browser` to also open the calendar at sign-in). It adds one shortcut to your account's Windows Startup folder.
+The server starts when you next sign in after booting Windows, and the calendar opens in your browser only with `-Browser`.
 It runs as your account, without administrator privileges; it does not run before sign-in.
 Running the installer again updates the same shortcut.
 
@@ -82,19 +95,19 @@ Get an in-app toast and a system notification a set time before an event starts.
 - If the server cannot show Windows notifications, or is not reachable, the page falls back to browser notifications (needs browser permission) while it is open.
 - The in-app toast still appears while the page is open. Windows Focus Assist / Do Not Disturb can hide Windows notifications.
 - The first notification registers an app name "ICS Calendar Viewer" for your Windows account (`HKCU\Software\Classes\AppUserModelId`).
-- Alert settings are kept in browser local storage and copied to `alerts-state.json` next to the server (private, gitignored, excluded from ZIPs). `alerts-fired.json` remembers which alerts were sent.
+- Alert settings are kept in browser local storage and copied to `data/alerts-state.json` (private, gitignored, excluded from ZIPs). `data/alerts-fired.json` remembers which alerts were sent.
 
 Cached events display while remote calendars refresh. Skeleton placeholders appear when the calendar is empty.
 The interface follows your system's light/dark preference.
 
 ## Data and privacy
 
-Remote feed links are saved locally in `feeds.json`, which the server creates as needed.
+Remote feed links are saved locally in `data/feeds.json`, which the server creates as needed. Files from an older version (`feeds.json` and `alerts-*.json` in the application folder) are moved into `data/` the first time the new server starts.
 Imported files, cached feed snapshots, and the auto-refresh preference are stored in your browser's local storage.
 Use the same browser profile and address to retain that browser data; clearing site data removes it.
 The server listens only on `127.0.0.1`. This application does not edit the source calendars.
 
-Treat `feeds.json`, `alerts-state.json` and calendar data as private. They are excluded from distribution ZIPs.
+Treat the `data/` folder and calendar data as private. They are excluded from distribution ZIPs.
 Calendar sources and browser caches are not transferred by the ZIP packager.
 
 ## Package the application
@@ -102,12 +115,12 @@ Calendar sources and browser caches are not transferred by the ZIP packager.
 Choose option 5 in `calendar.bat`, or run:
 
 ```bat
-python make_zip.py
+python scripts/make_zip.py
 ```
 
-The archive is created at `dist/ics-calendar-viewer.zip` and includes the app, the `calendar.bat` launcher, its PowerShell helpers, the ZIP script, and this README.
+The archive is created at `dist/ics-calendar-viewer.zip` and includes the app, the `calendar.bat` launcher, `scripts/`, the tests, and this README.
 Generated `.zip` files are excluded wherever they appear in the project, including the output archive itself.
-Git files, dependencies, build output, caches, local settings, secret files, `feeds.json`, and `.ics` files are excluded.
+Git files, dependencies, build output, caches, local settings, secret files, the `data/` folder, and `.ics` files are excluded.
 The previous archive is replaced after packaging succeeds.
 Recipients should extract the ZIP before running the launchers and add their own calendars.
 Node.js and Python are not bundled; Python is needed only for packaging.
