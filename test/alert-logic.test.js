@@ -53,3 +53,11 @@ test('when several offsets are due only the nearest is shown', () => {
   const due = L.findDueAlerts(r, [occ(now + 10 * M)], {}, now);
   assert.deepEqual(due.map(d => [d.offset, d.superseded]), [[60, true], [15, false]]);
 });
+
+test('pickUpNext returns the next non-cancelled events that have not started', () => {
+  const o = (title, mins) => ({ title, start: now + mins * M });
+  const list = [o('Later', 90), o('Started', -5), o('Canceled: Sync', 10), o('cancelled weekly', 20), o('Soon', 15), o('Middle', 45), o('Last', 200)];
+  assert.deepEqual(L.pickUpNext(list, now).map(e => e.title), ['Soon', 'Middle', 'Later']);
+  assert.deepEqual(L.pickUpNext(list, now, 1).map(e => e.title), ['Soon']);
+  assert.deepEqual(L.pickUpNext([], now), []);
+});

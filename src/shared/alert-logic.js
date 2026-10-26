@@ -205,15 +205,24 @@ function collectOccurrences(sources, now, horizonMs) {
       return {
         key: eventAlertKey(p.uid, e.title), title: e.title, start: e.start.getTime(), allDay: e.allDay,
         location: p.location, join: meeting && meeting.href,
-        sourceKeys: (p.sourceDetails || []).map(s => s.key).filter(Boolean)
+        sourceKeys: (p.sourceDetails || []).map(s => s.key).filter(Boolean),
+        sourceDetails: p.sourceDetails || []
       };
     });
+}
+
+// The next events that have not started, soonest first, skipping cancelled ones (for the Day view "Up next" list).
+function pickUpNext(occurrences, now, limit = 3) {
+  return occurrences
+    .filter(o => o.start > now && !/^\s*cancell?ed\b/i.test(o.title))
+    .sort((x, y) => x.start - y.start)
+    .slice(0, limit);
 }
 
 if (typeof module !== 'undefined') {
   module.exports = {
     MAX_OFFSET_MIN, eventAlertKey, normalizeOffsets, formatOffset, sanitizeRules, calendarDefaultOffsets, resolveOffsets,
     maxConfiguredOffset, findDueAlerts, formatRemaining, alertBody, parseIcs, expand, deduplicateEvents,
-    readableUrl, isTeamsMeeting, findMeetingUrl, collectOccurrences
+    readableUrl, isTeamsMeeting, findMeetingUrl, collectOccurrences, pickUpNext
   };
 }

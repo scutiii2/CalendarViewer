@@ -31,7 +31,11 @@
   </label>
 </div>
 <div id="sources" role="list"></div>
-<div class="alerts-panel" aria-label="Alert settings">
+<div class="alerts-panel" aria-label="Settings">
+  <div class="sb-hours" role="group" aria-label="Working hours">
+    <span>Working hours</span>
+    <span class="sb-hours-range"><input type="time" id="hours-start" aria-label="Working hours start"><span aria-hidden="true">–</span><input type="time" id="hours-end" aria-label="Working hours end"></span>
+  </div>
   <label class="sb-switch"><span>Mute all alerts</span><input type="checkbox" id="mute-all" role="switch"></label>
   <label id="startup-row" class="sb-switch" hidden title="The server starts in the background at sign-in so alerts work with the browser closed."><span>Start with Windows</span><input type="checkbox" id="startup-toggle" role="switch"></label>
   <div id="startup-state" class="startup-state" role="status" aria-live="polite" hidden><span class="state-icon" aria-hidden="true"></span><span id="startup-state-text"></span></div>
@@ -55,7 +59,8 @@
   </label>
   <button id="refresh" class="sync-refresh" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.9-3M4 5v4h4M4 13a8 8 0 0 0 14.9 3M20 19v-4h-4"/></svg>Refresh now</button>
 </div>
-<div id="cal"></div><div id="calendar-loading" aria-hidden="true" hidden></div></main>
+<div id="cal"></div><div id="calendar-loading" aria-hidden="true" hidden></div>
+<section id="up-next" class="up-next" aria-label="Up next" hidden></section></main>
 </div>
 <dialog id="dlg" aria-labelledby="dt"><div class="dialog-body">
   <form method="dialog"><button class="icon-button dialog-close" aria-label="Close event details" title="Close">×</button></form>

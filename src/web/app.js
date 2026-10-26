@@ -141,26 +141,80 @@ function placeSyncStrip() {
   if (toolbar && toolbar.nextElementSibling !== syncStrip) toolbar.after(syncStrip);
 }
 const setSyncState = state => { syncStrip.dataset.state = state; };
+const upNext = document.getElementById('up-next');
+const calBox = document.getElementById('cal');
+
+// Hours outside this range, and weekends, are shaded in every view.
+const HOURS_KEY = 'ics-calendar-viewer.workingHours.v1';
+function loadWorkingHours() {
+  try {
+    const h = JSON.parse(localStorage.getItem(HOURS_KEY));
+    if (h && /^\d\d:\d\d$/.test(h.start) && /^\d\d:\d\d$/.test(h.end) && h.start < h.end) return h;
+  } catch { /* Use the default when storage is blocked or the saved value is invalid. */ }
+  return { start: '08:00', end: '18:00' };
+}
+let workingHours = loadWorkingHours();
+const businessHours = () => ({ daysOfWeek: [1, 2, 3, 4, 5], startTime: workingHours.start, endTime: workingHours.end });
 
 const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
   initialView: 'timeGridWorkWeek',
   height: '100%',
   nowIndicator: true,
+  nowIndicatorContent(arg) {
+    if (!arg.isAxis) return undefined;
+    const chip = document.createElement('span');
+    chip.className = 'now-chip';
+    chip.textContent = arg.date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s?[AP]M$/i, '');
+    return { domNodes: [chip] };
+  },
+  businessHours: businessHours(),
+  eventDisplay: 'block',
+  dayMaxEvents: 3,
+  moreLinkClick: 'popover',
+  moreLinkContent: arg => '+' + arg.num + ' more',
+  fixedWeekCount: false,
   firstDay: 1,
   slotDuration: '00:30:00',
   scrollTime: currentScrollTime(),
-  allDaySlot: true,
+  allDaySlot: false, // switched on in eventsSet only when the visible range has all-day events
   headerToolbar: { left: 'today prev,next title', center: '', right: 'timeGridDay,timeGridWorkWeek,timeGridWeek,dayGridMonth' },
   buttonText: { today: 'Today', timeGridDay: 'Day', timeGridWorkWeek: 'Work week', timeGridWeek: 'Week', dayGridMonth: 'Month' },
   views: { timeGridWorkWeek: { type: 'timeGridWeek', weekends: false } },
   datesSet(arg) {
     if (arg.view.type.startsWith('timeGrid')) focusCurrentTime();
+    showUpNext(arg.view.type === 'timeGridDay');
+  },
+  eventsSet(events) {
+    const hasAllDay = events.some(e => e.allDay);
+    if (calendar.getOption('allDaySlot') !== hasAllDay) {
+      calendar.setOption('allDaySlot', hasAllDay);
+      if (calendar.view.type.startsWith('timeGrid')) focusCurrentTime();
+    }
+    renderUpNext();
   },
   dayHeaderContent(arg) {
     const weekday = arg.date.toLocaleDateString(undefined, { weekday: 'short' });
+    if (arg.view.type === 'dayGridMonth') return { html: weekday };
     return { html: weekday + '<span class="header-date">' + arg.date.getDate() + '</span>' };
   },
   eventContent(arg) {
+    if (arg.view.type === 'dayGridMonth') {
+      const chip = document.createElement('div');
+      chip.className = 'event-card month-chip' + (/^\s*cancell?ed\b/i.test(arg.event.title) ? ' canceled' : '');
+      chip.dataset.finish = eventFinishTime(arg.event);
+      chip.classList.toggle('completed', Number(chip.dataset.finish) <= Date.now());
+      if (!arg.event.allDay && arg.timeText) {
+        const time = document.createElement('span');
+        time.className = 'mc-time';
+        time.textContent = arg.timeText;
+        chip.append(time);
+      }
+      const title = document.createElement('span');
+      title.className = 'mc-title';
+      title.textContent = arg.event.title;
+      chip.append(title);
+      return { domNodes: [chip] };
+    }
     const card = document.createElement('div');
     card.className = 'event-card' + (arg.event.allDay ? ' all-day-card' : '') + (/^\s*cancell?ed\b/i.test(arg.event.title) ? ' canceled' : '');
     card.style.setProperty('--event-color', arg.event.backgroundColor || arg.event.borderColor || '#5b5fc7');
@@ -246,6 +300,102 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
 });
 calendar.render();
 placeSyncStrip();
+
+// ---- Day view "Up next" rail (lives outside #cal, which FullCalendar owns) ----
+function showUpNext(show) {
+  upNext.hidden = !show;
+  calBox.classList.toggle('show-rail', show);
+  calendar.updateSize();
+  positionUpNext();
+  renderUpNext();
+}
+
+function positionUpNext() {
+  const harness = document.querySelector('#cal .fc-view-harness');
+  if (!harness || upNext.hidden || !upNext.offsetParent) return; // offsetParent is null while the rail is display:none (phones)
+  const main = upNext.offsetParent.getBoundingClientRect();
+  const cal = calBox.getBoundingClientRect();
+  const pad = parseFloat(getComputedStyle(calBox).paddingRight) || 0;
+  const box = harness.getBoundingClientRect();
+  upNext.style.top = (box.top - main.top) + 'px';
+  upNext.style.height = box.height + 'px';
+  upNext.style.left = (cal.right - pad - upNext.offsetWidth - main.left) + 'px';
+}
+new ResizeObserver(positionUpNext).observe(calBox);
+new ResizeObserver(positionUpNext).observe(syncStrip);
+
+function renderUpNext() {
+  if (upNext.hidden) return;
+  const now = Date.now();
+  let items = [];
+  try { items = pickUpNext(collectOccurrences(sources, now, 7 * 86400000), now, 3); } catch { /* Keep the rail empty if a calendar cannot be read. */ }
+  upNext.replaceChildren();
+  const heading = document.createElement('h2');
+  heading.textContent = 'Up next';
+  upNext.append(heading);
+  if (!items.length) {
+    const none = document.createElement('p');
+    none.className = 'up-empty';
+    none.textContent = 'Nothing in the next 7 days.';
+    upNext.append(none);
+    return;
+  }
+  const clock = ms => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  items.forEach((o, i) => {
+    const item = document.createElement('div');
+    item.className = 'up-item' + (i === 0 ? ' first' : '');
+    const title = document.createElement('div');
+    title.className = 'up-title';
+    title.textContent = o.title;
+    item.append(title);
+    const dots = document.createElement('div');
+    dots.className = 'event-sources';
+    (o.sourceDetails || []).forEach(source => {
+      const dot = document.createElement('span');
+      dot.className = 'source-dot';
+      dot.style.setProperty('--detail-color', source.color);
+      dot.title = source.name;
+      dots.append(dot);
+    });
+    item.append(dots);
+    const day = new Date(o.start).toDateString() === new Date(now).toDateString() ? '' : new Date(o.start).toLocaleDateString(undefined, { weekday: 'short' }) + ' ';
+    const when = document.createElement('div');
+    when.className = 'up-when';
+    when.textContent = o.allDay ? (day || 'Today ') + 'all day'
+      : (i === 0 ? 'in ' + formatRemaining(o.start - now) + ' · ' : '') + day + clock(o.start);
+    item.append(when);
+    if (i === 0 && o.join) {
+      const join = document.createElement('a');
+      join.className = 'up-join';
+      join.href = o.join;
+      join.target = '_blank';
+      join.rel = 'noopener noreferrer';
+      join.textContent = 'Join';
+      item.append(join);
+    }
+    upNext.append(item);
+  });
+}
+setInterval(renderUpNext, 30000);
+
+// ---- Working hours ----
+const hoursStart = document.getElementById('hours-start');
+const hoursEnd = document.getElementById('hours-end');
+hoursStart.value = workingHours.start;
+hoursEnd.value = workingHours.end;
+function applyWorkingHours() {
+  if (hoursStart.value && hoursEnd.value && hoursStart.value < hoursEnd.value) {
+    workingHours = { start: hoursStart.value, end: hoursEnd.value };
+    try { localStorage.setItem(HOURS_KEY, JSON.stringify(workingHours)); } catch { /* The change still applies for this visit. */ }
+    calendar.setOption('businessHours', businessHours());
+  } else {
+    hoursStart.value = workingHours.start;
+    hoursEnd.value = workingHours.end;
+    setStatus('Working hours: the end must be after the start.');
+  }
+}
+hoursStart.onchange = applyWorkingHours;
+hoursEnd.onchange = applyWorkingHours;
 // Update finished-event styling even when the page stays open without navigation.
 setInterval(updateEventStatus, 30000);
 
