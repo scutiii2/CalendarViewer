@@ -1,21 +1,27 @@
+# Dotfiles and dot-folders (.env*, .venv/, .secrets/, .codex/, .agents/, ...)
+.*
+!.gitignore
+
+# App data and runtime state
 *.ics
 data/
 feeds.json
 alerts-state.json
 alerts-fired.json
+
+# Build output
 dist/
 build/
 *.zip
+
+# Dependencies and Python caches
 node_modules/
+venv/
 __pycache__/
 *.py[cod]
-.venv/
-venv/
-.env*
+
+# Secrets and logs
 secrets/
-.secrets/
 *.pem
 *.key
 *.log
-.codex/
-.agents/
