@@ -144,17 +144,26 @@ const setSyncState = state => { syncStrip.dataset.state = state; };
 const upNext = document.getElementById('up-next');
 const calBox = document.getElementById('cal');
 
-// Hours outside this range, and weekends, are shaded in every view.
+// Hours outside this range, and weekends, are shaded in every view. A start later than the end (22:00 to 06:00)
+// is an overnight shift: the early-morning part belongs to the day after the shift starts.
 const HOURS_KEY = 'ics-calendar-viewer.workingHours.v1';
+const endOfDay = time => (time === '00:00' ? '24:00' : time); // an end of 12 AM means midnight at the end of the day
 function loadWorkingHours() {
   try {
     const h = JSON.parse(localStorage.getItem(HOURS_KEY));
-    if (h && /^\d\d:\d\d$/.test(h.start) && /^\d\d:\d\d$/.test(h.end) && h.start < h.end) return h;
+    if (h && /^\d\d:\d\d$/.test(h.start) && /^\d\d:\d\d$/.test(h.end) && h.start !== h.end) return h;
   } catch { /* Use the default when storage is blocked or the saved value is invalid. */ }
   return { start: '08:00', end: '18:00' };
 }
 let workingHours = loadWorkingHours();
-const businessHours = () => ({ daysOfWeek: [1, 2, 3, 4, 5], startTime: workingHours.start, endTime: workingHours.end });
+function businessHours() {
+  const { start, end } = workingHours;
+  if (start < endOfDay(end)) return { daysOfWeek: [1, 2, 3, 4, 5], startTime: start, endTime: endOfDay(end) };
+  return [
+    { daysOfWeek: [1, 2, 3, 4, 5], startTime: start, endTime: '24:00' },
+    { daysOfWeek: [2, 3, 4, 5, 6], startTime: '00:00', endTime: end }
+  ];
+}
 
 const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
   initialView: 'timeGridWorkWeek',
@@ -201,6 +210,7 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
     if (arg.view.type === 'dayGridMonth') {
       const chip = document.createElement('div');
       chip.className = 'event-card month-chip' + (/^\s*cancell?ed\b/i.test(arg.event.title) ? ' canceled' : '');
+      chip.title = arg.event.title;
       chip.dataset.finish = eventFinishTime(arg.event);
       chip.classList.toggle('completed', Number(chip.dataset.finish) <= Date.now());
       if (!arg.event.allDay && arg.timeText) {
@@ -218,6 +228,7 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
     const card = document.createElement('div');
     card.className = 'event-card' + (arg.event.allDay ? ' all-day-card' : '') + (/^\s*cancell?ed\b/i.test(arg.event.title) ? ' canceled' : '');
     card.style.setProperty('--event-color', arg.event.backgroundColor || arg.event.borderColor || '#5b5fc7');
+    card.title = arg.event.title; // titles are cut to one line, so the full text is on hover
     card.dataset.finish = eventFinishTime(arg.event);
     card.classList.toggle('completed', Number(card.dataset.finish) <= Date.now());
     const title = document.createElement('div');
@@ -384,14 +395,14 @@ const hoursEnd = document.getElementById('hours-end');
 hoursStart.value = workingHours.start;
 hoursEnd.value = workingHours.end;
 function applyWorkingHours() {
-  if (hoursStart.value && hoursEnd.value && hoursStart.value < hoursEnd.value) {
+  if (hoursStart.value && hoursEnd.value && hoursStart.value !== hoursEnd.value) {
     workingHours = { start: hoursStart.value, end: hoursEnd.value };
     try { localStorage.setItem(HOURS_KEY, JSON.stringify(workingHours)); } catch { /* The change still applies for this visit. */ }
     calendar.setOption('businessHours', businessHours());
   } else {
     hoursStart.value = workingHours.start;
     hoursEnd.value = workingHours.end;
-    setStatus('Working hours: the end must be after the start.');
+    setStatus('Working hours: the start and end must be different.');
   }
 }
 hoursStart.onchange = applyWorkingHours;

@@ -85,7 +85,7 @@
   .fc .fc-col-header-cell-cushion { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 9px 4px; }
   .header-date { margin: 0; font-size: 17px; width: 32px; height: 32px; }
   .fc .fc-day-today .header-date { background: var(--brand); }
-  .fc .fc-timegrid-slot { height: 2.8em; }
+  .fc .fc-timegrid-slot { height: 3.9em; } /* a 30-minute slot must fit one event card (about 53px), or short events look longer than they are */
   .event-card { width: 100%; padding: 5px 8px; }
   .event-title { font-size: 12px; }
   .fc .fc-event, .fc .fc-event * { cursor: pointer; }
@@ -280,7 +280,7 @@
   .fc .fc-timegrid-slot-minor { border-top-style: none; }
   .fc .fc-timegrid-slot-label { vertical-align: top; border-color: transparent; }
   .fc .fc-timegrid-axis, .fc .fc-timegrid-slot-label { width: 56px; min-width: 56px; }
-  .fc .fc-timegrid-slot-label-cushion { display: inline-block; padding: 0 8px 0 0; font-size: 10px; white-space: nowrap; color: var(--muted); transform: translateY(-50%); }
+  .fc .fc-timegrid-slot-label-cushion { display: inline-block; vertical-align: top; height: 12px; padding: 0 8px 0 0; font-size: 10px; line-height: 12px; white-space: nowrap; color: var(--muted); transform: translateY(-50%); }
   .fc .fc-timegrid-axis { border-color: transparent; }
   .fc .fc-timegrid-divider { display: none; }
   .fc .fc-col-header-cell { border-left: 0; border-right: 0; }
@@ -290,6 +290,7 @@
   .fc .fc-scrollgrid-section-header .fc-scroller, .fc .fc-scrollgrid-section-header + .fc-scrollgrid-section .fc-scroller { scrollbar-color: transparent transparent; }
   .fc .fc-scrollgrid-section-header .fc-scroller::-webkit-scrollbar-thumb, .fc .fc-scrollgrid-section-header + .fc-scrollgrid-section .fc-scroller::-webkit-scrollbar-thumb { background: transparent; border-color: transparent; }
   .fc .fc-timegrid-allday .fc-timegrid-axis-cushion, .fc .fc-timegrid-axis-cushion { font-size: 10px; color: var(--muted); }
+  .fc .fc-timegrid-event .event-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* one line, so a card's height matches its duration */
   .fc .fc-timegrid-now-indicator-line { border-width: 1.5px; border-color: #d13438; }
   .fc .fc-timegrid-now-indicator-line::before { content: ''; position: absolute; left: -4px; top: -5px; width: 8px; height: 8px; border-radius: 50%; background: #d13438; }
   .fc .fc-timegrid-now-indicator-arrow { left: auto; right: 4px; margin: 0; border: 0; transform: translateY(-50%); }
