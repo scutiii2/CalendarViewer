@@ -1,4 +1,4 @@
-// Turns "start the server at Windows sign-in" on or off by running install_startup.ps1, the same script install_startup.bat uses.
+// Turns "start the server at Windows sign-in" on or off by running install_startup.ps1, the same script calendar.bat uses.
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');

@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 try {
     $serverPath = Join-Path $PSScriptRoot 'server.js'
-    # Match the absolute script argument used by run.bat, never other Node apps.
+    # Match the absolute script argument used by run.ps1, never other Node apps.
     $scriptPattern = '^\s*(?:"[^"]+"|\S+)\s+(?:"' + [regex]::Escape($serverPath) + '"|' + [regex]::Escape($serverPath) + ')\s*$'
     $servers = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object {
         $_.CommandLine -match $scriptPattern

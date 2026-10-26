@@ -13,7 +13,7 @@ try {
         # Only restart Node with this exact absolute server path as its script argument.
         $scriptPattern = '^\s*(?:"[^"]+"|\S+)\s+(?:"' + [regex]::Escape($serverPath) + '"|' + [regex]::Escape($serverPath) + ')\s*$'
         if ($running.Name -ne 'node.exe' -or $running.CommandLine -notmatch $scriptPattern) {
-            throw "Port $calendarPort is already in use by a process this launcher cannot safely restart. Close the previous server window or the application using that port, then run run.bat again."
+            throw "Port $calendarPort is already in use by a process this launcher cannot safely restart. Close the previous server window or the application using that port, then start the calendar again from calendar.bat."
         }
         Write-Host 'Restarting calendar server...'
         Stop-Process -Id $processId -ErrorAction Stop
