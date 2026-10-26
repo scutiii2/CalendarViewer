@@ -424,15 +424,34 @@ async function loadStartup() {
   try { showStartup(await (await api('/api/startup')).json()); } catch { /* No server: the toggle stays hidden. */ }
 }
 
+// Shows progress next to the checkbox: a spinner while working, then a check (fades away) or an error that stays.
+const startupState = document.getElementById('startup-state');
+let startupStateTimer;
+function setStartupState(kind, text) {
+  clearTimeout(startupStateTimer);
+  startupState.className = 'startup-state' + (kind ? ' ' + kind : '');
+  startupState.hidden = !kind;
+  document.getElementById('startup-state-text').textContent = text || '';
+  if (kind === 'ok') {
+    startupStateTimer = setTimeout(() => {
+      startupState.classList.add('fading');
+      startupStateTimer = setTimeout(() => setStartupState(null), 400);
+    }, 3000);
+  }
+}
+
 startupToggle.onchange = async () => {
   const wanted = startupToggle.checked;
   startupToggle.disabled = true;
+  setStartupState('busy', wanted ? 'Turning on…' : 'Turning off…');
   try {
     const r = await api('/api/startup', { method: 'POST', headers: { 'X-Calendar-Action': '1' }, body: JSON.stringify({ enabled: wanted }) });
     showStartup(await r.json());
+    setStartupState('ok', wanted ? 'Turned on' : 'Turned off');
     setStatus(wanted ? 'Server will start with Windows.' : 'Automatic startup turned off.');
   } catch (e) {
     startupToggle.checked = !wanted;
+    setStartupState('error', 'Failed: ' + e.message);
     setStatus('Startup change failed: ' + e.message);
   }
   startupToggle.disabled = false;
