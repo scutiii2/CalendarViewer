@@ -32,7 +32,7 @@
   .fc .fc-day-today .header-date { background: var(--accent); color: #fff; }
   .fc .fc-timegrid-slot-label-cushion { color: var(--time); font-size: 11px; } .fc .fc-timegrid-slot { height: 2.5em; }
   .fc .fc-timegrid-event, .fc .fc-daygrid-event { border: 0; border-radius: 4px; box-shadow: none; overflow: hidden; }
-  .fc .fc-daygrid-event { min-height: 22px; } .event-card { height: 100%; min-width: 0; border-left: 4px solid var(--event-color); padding: 3px 5px; background: color-mix(in srgb, var(--event-color) 15%, var(--panel)); color: var(--text); }
+  .fc .fc-daygrid-event { min-height: 22px; } .event-card { height: 100%; min-width: 0; padding: 3px 5px; color: var(--text); }
   .event-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 12px; } .event-time { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
   .event-card.canceled { --event-color: #6b6b6b !important; opacity: .5; filter: grayscale(1); } .event-card.canceled .event-title { text-decoration: line-through; font-weight: 500; }
   .all-day-card { border-left-width: 4px; padding: 2px 5px; } .fc .fc-timegrid-now-indicator-line { border-color: #d13438; border-width: 2px; }
@@ -85,7 +85,7 @@
   .fc .fc-col-header-cell-cushion { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 9px 4px; }
   .header-date { margin: 0; font-size: 17px; width: 32px; height: 32px; }
   .fc .fc-day-today .header-date { background: var(--brand); }
-  .fc .fc-timegrid-slot { height: 3.9em; } /* a 30-minute slot must fit one event card (about 53px), or short events look longer than they are */
+  .fc .fc-timegrid-slot { height: 4em; } /* a 30-minute slot must fit one event card (about 53px), or short events look longer than they are */
   .event-card { width: 100%; padding: 5px 8px; }
   .event-title { font-size: 12px; }
   .fc .fc-event, .fc .fc-event * { cursor: pointer; }
@@ -95,15 +95,16 @@
   .event-title { white-space: normal; overflow-wrap: anywhere; }
   .event-card { --event-color: #16833b !important; }
   .event-card.completed { --event-color: #808080 !important; }
-  /* FullCalendar also paints the outer event element with the source color. */
+  /* Every event is the same card as the Up next list: bordered, rounded, with a status bar on the left. */
   .fc .fc-event {
-    background: color-mix(in srgb, #16833b 20%, var(--panel)) !important;
-    border: 0 !important;
+    background: var(--panel) !important;
+    border: 1px solid var(--border) !important;
+    border-left: 3px solid #16833b !important;
+    border-radius: 8px !important;
     color: var(--text) !important;
   }
-  .fc .fc-event:has(.completed), .fc .fc-event:has(.canceled) {
-    background: color-mix(in srgb, #808080 15%, var(--panel)) !important;
-  }
+  .fc .fc-event:has(.completed), .fc .fc-event:has(.canceled) { border-left-color: #808080 !important; }
+  .fc .fc-event:hover { background: var(--surface-muted) !important; }
   .fc .fc-event .fc-event-main { color: var(--text); }
   .fc .fc-timegrid-event:hover { z-index: 10; box-shadow: 0 3px 12px #0003; }
   .all-day-card { padding: 2px 8px; }
@@ -298,8 +299,8 @@
   .fc .fc-daygrid-day-number { padding: 4px 6px; font-size: 11px; }
   .fc .fc-day-today .fc-daygrid-day-number { min-width: 24px; margin: 4px; padding: 2px 6px; border-radius: 12px; background: var(--brand); color: #fff; text-align: center; }
   .fc .fc-day-other .fc-daygrid-day-top { opacity: .45; }
-  .fc .fc-daygrid-event { margin: 1px 4px 0; }
-  .event-card.month-chip { display: flex; align-items: baseline; gap: 6px; min-height: 0; height: auto; padding: 1px 6px; border-left-width: 3px; font-size: 11px; white-space: nowrap; overflow: hidden; }
+  .fc .fc-daygrid-event { margin: 1px 4px 0; border-radius: 6px !important; }
+  .event-card.month-chip { display: flex; align-items: baseline; gap: 6px; min-height: 0; height: auto; padding: 1px 6px; font-size: 11px; white-space: nowrap; overflow: hidden; }
   .month-chip .mc-time { flex: none; color: var(--muted); }
   .month-chip .mc-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
   .month-chip.canceled .mc-title { text-decoration: line-through; font-weight: 400; }
@@ -308,8 +309,7 @@
   .fc .fc-popover-header { background: var(--surface-muted); color: var(--text); font-size: 12px; }
   .up-next { position: absolute; z-index: 2; width: 200px; box-sizing: border-box; padding-left: 12px; border-left: 1px solid var(--border); overflow: auto; display: grid; align-content: start; gap: 8px; }
   .up-next h2 { margin: 0 0 2px; font-size: 12px; font-weight: 500; color: var(--muted); }
-  .up-item { padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; }
-  .up-item.first { border-left: 3px solid #16833b; }
+  .up-item { padding: 5px 8px; border: 1px solid var(--border); border-left: 3px solid #16833b; border-radius: 8px; }
   .up-title { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
   .up-when { margin-top: 2px; color: var(--muted); font-size: 11px; }
   .up-join { display: inline-block; margin-top: 6px; padding: 2px 10px; border-radius: 4px; background: var(--brand); color: #fff; font-size: 11px; font-weight: 600; text-decoration: none; }
