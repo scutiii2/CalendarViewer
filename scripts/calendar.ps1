@@ -1,8 +1,8 @@
 # ICS Calendar Viewer control script. calendar.bat starts it; run it directly with an action to skip the menu:
-#   calendar.ps1 start [-NoBrowser] | stop | startup-on [-Browser] | startup-off | zip | toast
+#   calendar.ps1 start [-NoBrowser] | run [-NoBrowser] | stop | startup-on [-Browser] | startup-off | zip | toast
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('menu', 'start', 'stop', 'startup-on', 'startup-off', 'zip', 'toast')]
+    [ValidateSet('menu', 'start', 'run', 'stop', 'startup-on', 'startup-off', 'zip', 'toast')]
     [string]$Action = 'menu',
     [switch]$NoBrowser,      # start: do not open the browser
     [switch]$Browser,        # startup-on: also open the browser at sign-in
@@ -59,6 +59,31 @@ function Start-Calendar {
     $calendarUrl = "http://localhost:$port"
     Write-Host "Calendar ready: $calendarUrl"
     if (-not $NoBrowser) { Start-Process $calendarUrl }
+}
+
+# run.bat: start the server if it is stopped, restart it if it is older than the files on disk, then open the calendar.
+function Invoke-Calendar {
+    $port = Get-CalendarPort
+    $servers = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object { $_.CommandLine -match $serverPattern })
+    if (-not $servers.Count) {
+        Write-Host 'Calendar server is not running. Starting it...'
+        Start-Calendar
+        return
+    }
+    $diskVersion = if (Test-Path (Join-Path $root 'VERSION')) { (Get-Content (Join-Path $root 'VERSION') -Raw).Trim() } else { 'unknown' }
+    $runningVersion = $null
+    try { $runningVersion = (Invoke-RestMethod -Uri "http://127.0.0.1:$port/api/version" -TimeoutSec 3).version } catch { }
+    # Also catch edited files (for example a pulled update that kept the same version number).
+    $newest = Get-ChildItem -Path (Join-Path $root 'src'), (Join-Path $root 'vendor') -Recurse -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    $startedAt = ($servers | Measure-Object -Property CreationDate -Minimum).Minimum
+    if ($runningVersion -ne $diskVersion -or $newest.LastWriteTime -gt $startedAt) {
+        $was = if ($runningVersion) { $runningVersion } else { 'an older build' }
+        Write-Host "Running server is $was, files on disk are $diskVersion. Restarting..."
+        Start-Calendar
+        return
+    }
+    Write-Host "Calendar server is running (version $runningVersion)."
+    if (-not $NoBrowser) { Start-Process "http://localhost:$port" }
 }
 
 function Stop-Calendar {
@@ -182,6 +207,7 @@ try {
     switch ($Action) {
         'menu' { Show-Menu }
         'start' { Start-Calendar }
+        'run' { Invoke-Calendar }
         'stop' { Stop-Calendar }
         'startup-on' { Enable-Startup }
         'startup-off' { Disable-Startup }

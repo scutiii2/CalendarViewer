@@ -6,6 +6,8 @@ A read-only calendar that combines ICS links and imported `.ics` files in a Team
 
 ```text
 calendar.bat        double-click launcher (menu), or: calendar.bat start|stop|startup-on|startup-off|zip
+run.bat             one-click: start the server if needed, restart it after an update, open the calendar
+VERSION             application version, reported by the server at /api/version
 scripts/            calendar.ps1 (start, stop, startup, toast) and make_zip.py
 src/server/         server.js (entry point), alerts.js (background alerts), startup.js
 src/shared/         alert-logic.js, used by both the page and the server
@@ -25,7 +27,7 @@ No dependency installation or build step is required.
 
 ## Launcher reference
 
-Keep the application folder together: `calendar.bat` runs `scripts\calendar.ps1`.
+Keep the application folder together: `calendar.bat` and `run.bat` run `scripts\calendar.ps1`.
 Double-click `calendar.bat` for a menu; press Enter to choose the default, option 1.
 
 | Menu option | Command | Action |
@@ -35,6 +37,16 @@ Double-click `calendar.bat` for a menu; press Enter to choose the default, optio
 | 3 | `calendar.bat startup-on` | Start the server automatically at Windows sign-in. Add `-Browser` to open the calendar too. |
 | 4 | `calendar.bat startup-off` | Turn off automatic startup for your Windows account. |
 | 5 | `calendar.bat zip` | Create a clean distribution ZIP using Python 3. |
+
+## Quick start with run.bat
+
+Double-click `run.bat` (or run `run.bat -NoBrowser` to skip the browser). It does the right thing without a menu:
+
+- Server stopped: starts it and opens the calendar.
+- Server running and up to date: leaves it running and opens the calendar.
+- Server running but older than the files on disk (the `VERSION` differs, or a file in `src/` or `vendor/` is newer than the server process): restarts it, then opens the calendar.
+
+To update, extract the new version over the application folder (keep `data/`), then double-click `run.bat`. Maintainers: change the number in `VERSION` for each release.
 
 ## Start, restart, and stop
 

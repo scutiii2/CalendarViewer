@@ -9,6 +9,8 @@ const PORT = Number(process.env.PORT) || 3000;
 const ROOT = path.join(__dirname, '..', '..');
 const DATA_DIR = process.env.CALENDAR_DATA_DIR || path.join(ROOT, 'data'); // the override is for tests
 const FEEDS_FILE = path.join(DATA_DIR, 'feeds.json');
+// Read once at start, so run.bat can tell when a running server is older than the files on disk.
+const VERSION = (() => { try { return fs.readFileSync(path.join(ROOT, 'VERSION'), 'utf8').trim(); } catch { return 'unknown'; } })();
 
 // Earlier versions kept runtime files in the application root. Move them once; never overwrite or lose data.
 function migrateData() {
@@ -92,6 +94,8 @@ http.createServer(async (req, res) => {
       const asset = staticFile(url.pathname);
       if (asset) return send(res, 200, fs.readFileSync(asset.file), asset.type);
     }
+
+    if (url.pathname === '/api/version' && req.method === 'GET') return sendJson(res, 200, { version: VERSION });
 
     if (url.pathname === '/api/startup') {
       if (req.method === 'GET') return sendJson(res, 200, startup.status());

@@ -47,6 +47,10 @@ test('server serves the web files safely and guards the startup endpoint', async
     assert.equal((await request('GET', url)).status, 404, url);
   }
 
+  const version = await request('GET', '/api/version');
+  assert.equal(version.status, 200);
+  assert.equal(JSON.parse(version.data).version, fs.readFileSync(path.join(__dirname, '..', 'VERSION'), 'utf8').trim());
+
   const body = JSON.stringify({ enabled: false });
   const post = headers => request('POST', '/api/startup', { 'Content-Type': 'application/json', ...headers }, body).then(r => r.status);
   assert.equal(await post({}), 403, 'missing header');
