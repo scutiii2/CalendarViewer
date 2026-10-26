@@ -182,7 +182,7 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
   moreLinkClick: 'popover',
   moreLinkContent: arg => '+' + arg.num + ' more',
   fixedWeekCount: false,
-  firstDay: 1,
+  firstDay: 0,
   slotDuration: '00:30:00',
   scrollTime: currentScrollTime(),
   allDaySlot: false, // switched on in eventsSet only when the visible range has all-day events
@@ -959,6 +959,23 @@ autoRefresh.onchange = () => {
   configureAutoRefresh();
 };
 configureAutoRefresh();
+const THEME_KEY = 'calendar-theme';
+function applyTheme(choice) {
+  if (choice === 'light' || choice === 'dark') document.documentElement.dataset.theme = choice;
+  else delete document.documentElement.dataset.theme;
+  document.querySelectorAll('[data-theme-choice]').forEach(button =>
+    button.setAttribute('aria-pressed', String(button.dataset.themeChoice === (choice === 'light' || choice === 'dark' ? choice : 'system'))));
+}
+let savedTheme = 'system';
+try { savedTheme = localStorage.getItem(THEME_KEY) || 'system'; } catch { /* Follow the system theme if storage is blocked. */ }
+applyTheme(savedTheme);
+document.querySelectorAll('[data-theme-choice]').forEach(button => {
+  button.onclick = () => {
+    const choice = button.dataset.themeChoice;
+    try { localStorage.setItem(THEME_KEY, choice); } catch { }
+    applyTheme(choice);
+  };
+});
 document.getElementById('add').onsubmit = async e => {
   e.preventDefault();
   const f = e.target;

@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ICS Calendar Viewer</title>
+<script>try { var t = localStorage.getItem('calendar-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) { }</script>
 <script src="/vendor/ical.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 <script src="/shared/alert-logic.js"></script>
@@ -35,6 +36,14 @@
   <div class="sb-hours" role="group" aria-label="Working hours">
     <span>Working hours</span>
     <span class="sb-hours-range"><input type="time" id="hours-start" aria-label="Working hours start"><span aria-hidden="true">–</span><input type="time" id="hours-end" aria-label="Working hours end"></span>
+  </div>
+  <div class="sb-hours" role="group" aria-label="Theme">
+    <span>Theme</span>
+    <div class="sb-seg" id="theme-seg">
+      <button type="button" data-theme-choice="system" aria-pressed="true">System</button>
+      <button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
+    </div>
   </div>
   <label class="sb-switch"><span>Mute all alerts</span><input type="checkbox" id="mute-all" role="switch"></label>
   <label id="startup-row" class="sb-switch" hidden title="The server starts in the background at sign-in so alerts work with the browser closed."><span>Start with Windows</span><input type="checkbox" id="startup-toggle" role="switch"></label>
