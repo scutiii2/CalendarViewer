@@ -10,7 +10,7 @@ scripts/            calendar.ps1 (start, stop, startup, toast) and make_zip.py
 src/server/         server.js (entry point), alerts.js (background alerts), startup.js
 src/shared/         alert-logic.js, used by both the page and the server
 src/web/            index.html, styles.css, app.js (the calendar page)
-vendor/             ical.min.js (bundled ICS parser)
+vendor/             FullCalendar, ical.js and third-party licences
 test/               run with: node --test
 data/               your feeds and alert state (created at run time, private)
 ```
@@ -18,7 +18,7 @@ data/               your feeds and alert state (created at run time, private)
 ## Requirements
 
 - Windows with Node.js 18 or newer on PATH. A currently supported Node.js LTS release is recommended.
-- A browser and an internet connection for the CDN libraries and remote calendar feeds.
+- A browser; an internet connection is needed only for remote calendar feeds and links you open.
 - Python 3.8 or newer only if you want to create a distribution ZIP.
 
 No dependency installation or build step is required.
@@ -100,12 +100,15 @@ Get an in-app toast and a system notification a set time before an event starts.
 Cached events display while remote calendars refresh. Skeleton placeholders appear when the calendar is empty.
 The interface follows your system's light/dark preference.
 
-## Data and privacy
+## Privacy
 
 Remote feed links are saved locally in `data/feeds.json`, which the server creates as needed. Files from an older version (`feeds.json` and `alerts-*.json` in the application folder) are moved into `data/` the first time the new server starts.
 Imported files, cached feed snapshots, and the auto-refresh preference are stored in your browser's local storage.
 Use the same browser profile and address to retain that browser data; clearing site data removes it.
 The server listens only on `127.0.0.1`. This application does not edit the source calendars.
+
+Calendar data stays on your machine, in `data/` and browser storage. The app contacts only the calendar hosts you add (including redirects); opening a meeting or description link contacts its destination. All libraries are bundled locally: there is no CDN request and no telemetry.
+ICS links may contain secret access tokens. Keep `data/`, imported calendars and browser storage private; do not publish or share feed links.
 
 Treat the `data/` folder and calendar data as private. They are excluded from distribution ZIPs.
 Calendar sources and browser caches are not transferred by the ZIP packager.
@@ -132,3 +135,19 @@ Node.js and Python are not bundled; Python is needed only for packaging.
 - **Feed refresh fails:** confirm the server is running and the ICS link is accessible. Cached events remain available.
 - **Startup does not work:** check that the application folder has not moved and turn startup off and on again from `calendar.bat`.
 - **Custom port:** set the `PORT` environment variable before launching. Browser storage is separate for each port.
+
+## Accessibility
+
+- Interface text and controls in the default light and dark themes meet WCAG 2.1 AA contrast (4.5:1 for text), checked by calculation on the theme colours.
+- Buttons, switches and form fields have text labels or `aria-label`s, and status messages use `role="status"` with `aria-live`.
+- Every control shows a visible focus outline, and animations stop under `prefers-reduced-motion`.
+- Known gaps: calendar colours you choose yourself are not checked for contrast, and the page has not been tested with a screen reader. Reports are welcome.
+
+## Disclaimer
+
+Alerts are best effort and must not be used for safety-critical purposes.
+This project is not affiliated with Microsoft, Google or DXC. "Teams-inspired" describes the layout only.
+
+## Licences and security
+
+See [third-party notices](THIRD-PARTY-NOTICES.md) for bundled components and their licences, and [the security policy](SECURITY.md) for private vulnerability reporting.

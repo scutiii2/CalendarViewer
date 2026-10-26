@@ -8,7 +8,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 
 EXCLUDED_DIRS = {
-    '.git', '.hg', '.svn', '.codex', '.agents', '.idea', '.vscode',
+    '.git', '.hg', '.svn', '.claude', '.codex', '.agents', '.idea', '.vscode',
     '__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache',
     '.cache', 'node_modules', '.venv', 'venv', 'dist', 'build',
     'coverage', 'htmlcov', 'secrets', '.secrets', 'data',
