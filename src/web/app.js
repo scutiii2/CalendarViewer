@@ -398,12 +398,13 @@ muteAll.onchange = () => { alertRules.global.muted = muteAll.checked; alertRules
 function updateNotifyPanel() {
   const status = document.getElementById('notify-status');
   const enable = document.getElementById('notify-enable');
+  const show = (text, detail, on) => { status.textContent = text; status.title = detail; status.parentElement.classList.toggle('on', on); };
   enable.hidden = true;
-  if (serverToasts) status.textContent = 'Windows notifications are sent by the background server, even when this page is closed.';
-  else if (!('Notification' in window)) status.textContent = 'System notifications are not supported here. In-app alerts only.';
-  else if (Notification.permission === 'granted') status.textContent = 'System notifications on. They fire only while this page is open.';
-  else if (Notification.permission === 'denied') status.textContent = 'System notifications are blocked in browser settings. In-app alerts only.';
-  else { status.textContent = 'System notifications are off.'; enable.hidden = false; }
+  if (serverToasts) show('Windows notifications on', 'Windows notifications are sent by the background server, even when this page is closed.', true);
+  else if (!('Notification' in window)) show('Notifications not supported', 'System notifications are not supported here. In-app alerts only.', false);
+  else if (Notification.permission === 'granted') show('Browser notifications on', 'System notifications on. They fire only while this page is open.', true);
+  else if (Notification.permission === 'denied') show('Notifications blocked', 'System notifications are blocked in browser settings. In-app alerts only.', false);
+  else { show('Notifications off', 'System notifications are off.', false); enable.hidden = false; }
 }
 
 function askNotificationPermission() {
@@ -417,7 +418,6 @@ updateNotifyPanel();
 const startupToggle = document.getElementById('startup-toggle');
 function showStartup(status) {
   document.getElementById('startup-row').hidden = !status.supported;
-  document.getElementById('startup-note').hidden = !status.supported;
   startupToggle.checked = !!status.enabled;
 }
 
@@ -520,24 +520,36 @@ function showToast(occ, body) {
 setInterval(() => runAlertCheck(false), 30000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) runAlertCheck(false); });
 
+const BELL_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true">' + BELL_PATH + '</svg>';
+const MORE_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>';
+
 function renderSources() {
   const box = document.getElementById('sources');
+  closeSourceMenu(false);
   box.replaceChildren();
+  if (!sources.length) {
+    const empty = document.createElement('p');
+    empty.className = 'sb-empty';
+    empty.textContent = 'No calendars yet. Use + to add a link or an .ics file.';
+    box.append(empty);
+    return;
+  }
   sources.forEach(s => {
     if (isReservedGreen(s.color)) s.color = PALETTE[(s.id - 1) % PALETTE.length];
     const el = document.createElement('div');
-    el.className = 'src';
+    el.className = 'src' + (s.enabled ? '' : ' off');
+    el.setAttribute('role', 'listitem');
     el.style.setProperty('--source-color', s.color);
-    el.innerHTML = '<input type="checkbox" aria-label="Show or hide calendar" title="Show/hide"><input type="color" aria-label="Calendar color" title="Color"><input type="text" aria-label="Calendar label" title="Label"><button class="icon-button bell-button" aria-label="Default alerts" title="Default alerts"><svg viewBox="0 0 24 24" aria-hidden="true">' + BELL_PATH + '</svg></button><button class="icon-button" aria-label="Remove calendar" title="Remove">×</button>';
-    const [chk, col, name, bell, rm] = el.children;
+    el.innerHTML = '<input type="checkbox" class="src-check" aria-label="Show or hide calendar" title="Show or hide"><span class="src-name"></span><button type="button" class="icon-button bell-button" aria-label="Default alerts" title="Default alerts">' + BELL_ICON + '</button><button type="button" class="icon-button more-button" aria-label="Calendar options" aria-haspopup="menu" aria-expanded="false" title="Options">' + MORE_ICON + '</button><input type="color" class="src-color" tabindex="-1" aria-hidden="true">';
+    const [chk, name, bell, more, col] = el.children;
     const calRule = alertRules.calendars[s.alertKey];
     bell.classList.toggle('active', !!(calRule && calRule.enabled && calRule.offsets.length));
     bell.onclick = () => openCalendarAlerts(s);
+    name.textContent = s.name;
+    name.title = s.name;
     chk.checked = s.enabled;
+    chk.onchange = () => { s.enabled = chk.checked; el.classList.toggle('off', !s.enabled); saveLocalSources(); calendar.refetchEvents(); };
     col.value = s.color;
-    name.value = s.name;
-    chk.onchange = () => { s.enabled = chk.checked; saveLocalSources(); calendar.refetchEvents(); };
-    col.title = 'Calendar color (green is reserved for active events)';
     col.oninput = () => {
       if (isReservedGreen(col.value)) {
         col.value = s.color;
@@ -549,21 +561,121 @@ function renderSources() {
       saveLocalSources();
       calendar.refetchEvents();
     };
-    name.oninput = () => { s.name = name.value; saveLocalSources(); };
-    rm.onclick = async () => {
-      if (s.feedId) {
-        try { await api('/api/feeds/' + s.feedId, { method: 'DELETE' }); }
-        catch (e) { return setStatus('Remove failed: ' + e.message); }
-      }
-      sources.splice(sources.indexOf(s), 1);
-      if (alertRules.calendars[s.alertKey]) { delete alertRules.calendars[s.alertKey]; saveAlertRules(); }
-      saveLocalSources();
-      renderSources();
-      calendar.refetchEvents();
-    };
+    more.onclick = () => openSourceMenu(s, el, more, col);
     box.append(el);
   });
 }
+
+async function removeSource(s) {
+  if (s.feedId) {
+    try { await api('/api/feeds/' + s.feedId, { method: 'DELETE' }); }
+    catch (e) { return setStatus('Remove failed: ' + e.message); }
+  }
+  sources.splice(sources.indexOf(s), 1);
+  if (alertRules.calendars[s.alertKey]) { delete alertRules.calendars[s.alertKey]; saveAlertRules(); }
+  saveLocalSources();
+  renderSources();
+  calendar.refetchEvents();
+}
+
+function startRename(s, row) {
+  const span = row.querySelector('.src-name');
+  const more = row.querySelector('.more-button');
+  const field = document.createElement('input');
+  field.type = 'text';
+  field.className = 'src-rename';
+  field.value = s.name;
+  field.setAttribute('aria-label', 'Calendar name');
+  let finished = false;
+  const finish = (save, refocus) => {
+    if (finished) return;
+    finished = true;
+    const next = field.value.trim();
+    if (save && next && next !== s.name) { s.name = next; saveLocalSources(); calendar.refetchEvents(); }
+    span.textContent = s.name;
+    span.title = s.name;
+    field.replaceWith(span);
+    if (refocus) more.focus();
+  };
+  field.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true, true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false, true); }
+  };
+  field.onblur = () => finish(true, false);
+  span.replaceWith(field);
+  field.focus();
+  field.select();
+}
+
+// One shared options menu for every calendar row (Rename, Colour, Remove).
+const sourceMenu = document.createElement('div');
+sourceMenu.className = 'src-menu';
+sourceMenu.setAttribute('role', 'menu');
+sourceMenu.hidden = true;
+document.body.append(sourceMenu);
+let menuOwner = null; // { button, confirmTimer }
+
+function closeSourceMenu(refocus) {
+  if (!menuOwner) return;
+  clearTimeout(menuOwner.confirmTimer);
+  menuOwner.button.setAttribute('aria-expanded', 'false');
+  if (refocus) menuOwner.button.focus();
+  menuOwner = null;
+  sourceMenu.hidden = true;
+  sourceMenu.replaceChildren();
+}
+
+function openSourceMenu(s, row, button, colorInput) {
+  if (menuOwner && menuOwner.button === button) return closeSourceMenu(true);
+  closeSourceMenu(false);
+  menuOwner = { button, confirmTimer: 0 };
+  button.setAttribute('aria-expanded', 'true');
+  const item = (label, onClick, className) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'menuitem');
+    b.textContent = label;
+    if (className) b.className = className;
+    b.onclick = onClick;
+    sourceMenu.append(b);
+    return b;
+  };
+  item('Rename', () => { closeSourceMenu(false); startRename(s, row); });
+  item('Colour', () => {
+    closeSourceMenu(false);
+    if (colorInput.showPicker) colorInput.showPicker(); else colorInput.click();
+  });
+  const remove = item('Remove', () => {
+    if (!remove.dataset.confirm) {
+      remove.dataset.confirm = '1';
+      remove.textContent = 'Confirm remove';
+      menuOwner.confirmTimer = setTimeout(() => { delete remove.dataset.confirm; remove.textContent = 'Remove'; }, 4000);
+      return;
+    }
+    closeSourceMenu(false);
+    removeSource(s);
+  }, 'danger');
+  sourceMenu.hidden = false;
+  const rect = button.getBoundingClientRect();
+  const width = sourceMenu.offsetWidth, height = sourceMenu.offsetHeight;
+  sourceMenu.style.left = Math.max(8, Math.min(rect.right - width, innerWidth - width - 8)) + 'px';
+  sourceMenu.style.top = (rect.bottom + 4 + height > innerHeight ? Math.max(8, rect.top - height - 4) : rect.bottom + 4) + 'px';
+  sourceMenu.querySelector('button').focus();
+}
+
+sourceMenu.addEventListener('keydown', e => {
+  const items = [...sourceMenu.querySelectorAll('button')];
+  const at = items.indexOf(document.activeElement);
+  if (e.key === 'Escape') { e.preventDefault(); closeSourceMenu(true); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); items[(at + 1) % items.length].focus(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); items[(at - 1 + items.length) % items.length].focus(); }
+  else if (e.key === 'Tab') closeSourceMenu(false);
+});
+document.addEventListener('pointerdown', e => {
+  if (menuOwner && !sourceMenu.contains(e.target) && !menuOwner.button.contains(e.target)) closeSourceMenu(false);
+});
+window.addEventListener('resize', () => closeSourceMenu(false));
+document.getElementById('sources').addEventListener('scroll', () => closeSourceMenu(false));
 
 async function addFiles(files) {
   for (const f of files) {
@@ -580,12 +692,13 @@ async function addFiles(files) {
         icsText
       });
     } catch (e) {
-      alert('Could not read ' + f.name + ': ' + e.message);
+      setStatus('Could not read ' + f.name + ': ' + e.message);
     }
   }
   saveLocalSources();
   renderSources();
   calendar.refetchEvents();
+  setAddCardOpen(false);
 }
 
 const setStatus = msg => {
@@ -694,6 +807,7 @@ document.getElementById('add').onsubmit = async e => {
       body: JSON.stringify({ name: f.name.value, url: f.url.value, color: PALETTE[sources.length % PALETTE.length] })
     });
     f.reset();
+    setAddCardOpen(false);
     await loadFeeds();
   } catch (err) { setStatus('Add failed: ' + err.message); }
 };
@@ -706,9 +820,54 @@ calendar.refetchEvents();
 refreshServerStatus().then(() => { runAlertCheck(false); scheduleAlertSync(); });
 loadFeeds();
 
-const drop = document.getElementById('drop');
-const input = document.getElementById('file');
-input.onchange = () => { addFiles([...input.files]); input.value = ''; };
-['dragover', 'dragenter'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
-['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
-drop.addEventListener('drop', e => addFiles([...e.dataTransfer.files]));
+// ---- Add card ----
+const addToggle = document.getElementById('add-toggle');
+const addCard = document.getElementById('add-card');
+const addForm = document.getElementById('add');
+const dropZone = document.getElementById('drop');
+function setAddMode(mode) {
+  addForm.hidden = mode !== 'link';
+  dropZone.hidden = mode !== 'file';
+  document.getElementById('mode-link').setAttribute('aria-pressed', String(mode === 'link'));
+  document.getElementById('mode-file').setAttribute('aria-pressed', String(mode === 'file'));
+}
+function setAddCardOpen(open) {
+  addCard.hidden = !open;
+  addToggle.setAttribute('aria-expanded', String(open));
+  addToggle.setAttribute('aria-label', open ? 'Close add calendar' : 'Add calendar');
+  addToggle.title = addToggle.getAttribute('aria-label');
+  addToggle.classList.toggle('open', open);
+  if (open) { setAddMode('link'); addForm.elements.name.focus(); }
+}
+addToggle.onclick = () => setAddCardOpen(addCard.hidden);
+document.getElementById('mode-link').onclick = () => setAddMode('link');
+document.getElementById('mode-file').onclick = () => setAddMode('file');
+
+// ---- .ics files: choose them in the File tab, or drop them anywhere on the sidebar ----
+const fileInput = document.getElementById('file');
+function acceptFiles(files) {
+  const accepted = [], skipped = [];
+  files.forEach(f => (/\.ics$/i.test(f.name) || f.type === 'text/calendar' ? accepted : skipped).push(f));
+  if (skipped.length) setStatus('Skipped ' + skipped.map(f => f.name).join(', ') + ': not an .ics file');
+  if (accepted.length) addFiles(accepted);
+}
+fileInput.onchange = () => { acceptFiles([...fileInput.files]); fileInput.value = ''; };
+
+const sidebar = document.getElementById('sidebar');
+const dropOverlay = document.getElementById('drop-overlay');
+const hasFiles = e => !!e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+let dragDepth = 0; // dragenter/dragleave also fire for child elements, so count them
+sidebar.addEventListener('dragenter', e => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth++; dropOverlay.hidden = false; });
+sidebar.addEventListener('dragover', e => { if (!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+sidebar.addEventListener('dragleave', e => {
+  if (!hasFiles(e)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (!dragDepth) dropOverlay.hidden = true;
+});
+sidebar.addEventListener('drop', e => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  dragDepth = 0;
+  dropOverlay.hidden = true;
+  acceptFiles([...e.dataTransfer.files]);
+});

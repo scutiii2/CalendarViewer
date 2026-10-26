@@ -11,27 +11,35 @@
 </head>
 <body>
 <div class="app">
-<aside aria-label="Calendar sources">
-<header>
-  <h1>Calendar</h1>
+<aside id="sidebar" aria-label="Calendars">
+<div class="sb-head">
+  <h1>Calendars</h1>
+  <button id="add-toggle" class="sb-icon" type="button" aria-expanded="false" aria-controls="add-card" aria-label="Add calendar" title="Add calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+</div>
+<div id="add-card" class="add-card" hidden>
+  <div class="sb-seg" role="group" aria-label="How to add a calendar">
+    <button id="mode-link" type="button" aria-pressed="true">Link</button>
+    <button id="mode-file" type="button" aria-pressed="false">File</button>
+  </div>
   <form id="add" aria-label="Add calendar link">
-    <input name="name" aria-label="Calendar label" placeholder="Label (DXC)" size="12">
-    <input name="url" aria-label="ICS link" placeholder="ICS link" size="28" required>
-    <button type="submit">Add link</button>
+    <input name="name" aria-label="Calendar label" placeholder="Label (DXC)">
+    <input name="url" aria-label="ICS link" placeholder="ICS link" required>
+    <button type="submit">Add calendar</button>
   </form>
-  <label id="drop">Drop .ics files here or click to choose
+  <label id="drop" hidden>Drop .ics files here or click to choose
     <input id="file" type="file" accept=".ics,text/calendar" multiple hidden>
   </label>
-</header>
-<div class="sidebar-heading">My calendars <span>Sources</span></div><div id="sources"></div>
+</div>
+<div id="sources" role="list"></div>
 <div class="alerts-panel" aria-label="Alert settings">
-  <label><input type="checkbox" id="mute-all"> Mute all alerts</label>
-  <div id="notify-status" role="status"></div>
-  <button id="notify-enable" type="button" hidden>Enable system notifications</button>
-  <label id="startup-row" hidden><input type="checkbox" id="startup-toggle"> Start with Windows</label>
+  <label class="sb-switch"><span>Mute all alerts</span><input type="checkbox" id="mute-all" role="switch"></label>
+  <label id="startup-row" class="sb-switch" hidden title="The server starts in the background at sign-in so alerts work with the browser closed."><span>Start with Windows</span><input type="checkbox" id="startup-toggle" role="switch"></label>
   <div id="startup-state" class="startup-state" role="status" aria-live="polite" hidden><span class="state-icon" aria-hidden="true"></span><span id="startup-state-text"></span></div>
-  <div id="startup-note" class="alert-hint" hidden>The server starts in the background at sign-in so alerts work with the browser closed.</div>
-</div></aside>
+  <div class="sb-status"><span class="sb-dot" aria-hidden="true"></span><span id="notify-status" role="status"></span></div>
+  <button id="notify-enable" type="button" hidden>Enable system notifications</button>
+</div>
+<div id="drop-overlay" class="drop-overlay" hidden>Drop .ics files to add</div>
+</aside>
 <main>
 <div id="sync-strip" class="sync-strip" data-state="idle">
   <span class="sync-dot" aria-hidden="true"></span>
