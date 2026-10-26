@@ -1,5 +1,7 @@
 *.ics
 feeds.json
+alerts-state.json
+alerts-fired.json
 dist/
 build/
 *.zip

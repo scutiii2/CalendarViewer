@@ -21,7 +21,7 @@ def excluded(name):
     return (
         lower in EXCLUDED_DIRS
         or lower.startswith(('.git', '.env'))
-        or lower in {'feeds.json', '.ds_store', 'thumbs.db', 'desktop.ini'}
+        or lower in {'feeds.json', 'alerts-state.json', 'alerts-fired.json', '.ds_store', 'thumbs.db', 'desktop.ini'}
         or lower.endswith('~')
         or Path(lower).suffix in EXCLUDED_SUFFIXES
     )

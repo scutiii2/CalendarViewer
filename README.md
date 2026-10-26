@@ -74,9 +74,12 @@ Get an in-app toast and a system notification a set time before an event starts.
 - **Mute everything:** tick *Mute all alerts* in the sidebar. Settings are kept.
 - Events with an active alert show a bell icon. Hidden calendars do not alert.
 - Toasts stay until dismissed and include a Join button for Teams meetings.
-- System notifications need browser permission, requested when you add your first alert.
-- Alerts fire only while the calendar page is open in a browser. Closing the tab or browser stops them. If an alert time passed while the page was closed and the event has not started, it fires when you reopen the page.
-- Alert settings are stored in your browser's local storage, like the other preferences.
+- **Windows notifications come from the background server**, so they appear even when the browser is closed. The page sends its alert settings and imported calendars to the server, which re-fetches feed links every 5 minutes and checks every 30 seconds. They stay on screen until dismissed, and the Join button opens a Teams meeting link.
+- The server must be running: use `run.bat` or `install_startup.bat`. If the server is stopped, no alert fires; alerts that came due while it was stopped fire when it starts, if the event has not started.
+- If the server cannot show Windows notifications, or is not reachable, the page falls back to browser notifications (needs browser permission) while it is open.
+- The in-app toast still appears while the page is open. Windows Focus Assist / Do Not Disturb can hide Windows notifications.
+- The first notification registers an app name "ICS Calendar Viewer" for your Windows account (`HKCU\Software\Classes\AppUserModelId`).
+- Alert settings are kept in browser local storage and copied to `alerts-state.json` next to the server (private, gitignored, excluded from ZIPs). `alerts-fired.json` remembers which alerts were sent.
 
 Cached events display while remote calendars refresh. Skeleton placeholders appear when the calendar is empty.
 The interface follows your system's light/dark preference.
@@ -88,7 +91,7 @@ Imported files, cached feed snapshots, and the auto-refresh preference are store
 Use the same browser profile and address to retain that browser data; clearing site data removes it.
 The server listens only on `127.0.0.1`. This application does not edit the source calendars.
 
-Treat `feeds.json` and calendar data as private. They are excluded from distribution ZIPs.
+Treat `feeds.json`, `alerts-state.json` and calendar data as private. They are excluded from distribution ZIPs.
 Calendar sources and browser caches are not transferred by the ZIP packager.
 
 ## Package the application
