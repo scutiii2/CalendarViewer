@@ -22,17 +22,6 @@
   <label id="drop">Drop .ics files here or click to choose
     <input id="file" type="file" accept=".ics,text/calendar" multiple hidden>
   </label>
-  <div class="top-actions">
-    <label for="auto-refresh" class="auto-refresh-label">Auto-refresh</label>
-    <select id="auto-refresh">
-      <option value="0">Off</option><option value="1">Every minute</option>
-      <option value="5">Every 5 minutes</option><option value="10">Every 10 minutes</option>
-      <option value="15">Every 15 minutes</option><option value="30">Every 30 minutes</option>
-      <option value="60">Every hour</option>
-    </select>
-    <button id="refresh" class="primary" type="button">Refresh</button>
-    <span id="note" role="status" aria-live="polite"><span id="status"></span></span>
-  </div>
 </header>
 <div class="sidebar-heading">My calendars <span>Sources</span></div><div id="sources"></div>
 <div class="alerts-panel" aria-label="Alert settings">
@@ -43,7 +32,22 @@
   <div id="startup-state" class="startup-state" role="status" aria-live="polite" hidden><span class="state-icon" aria-hidden="true"></span><span id="startup-state-text"></span></div>
   <div id="startup-note" class="alert-hint" hidden>The server starts in the background at sign-in so alerts work with the browser closed.</div>
 </div></aside>
-<main><div id="cal"></div><div id="calendar-loading" aria-hidden="true" hidden></div></main>
+<main>
+<div id="sync-strip" class="sync-strip" data-state="idle">
+  <span class="sync-dot" aria-hidden="true"></span>
+  <span id="note" role="status" aria-live="polite"><span id="status"></span></span>
+  <span class="sync-sep" aria-hidden="true">·</span>
+  <label class="sync-auto">Auto-refresh
+    <select id="auto-refresh">
+      <option value="0">off</option><option value="1">every minute</option>
+      <option value="5">every 5 min</option><option value="10">every 10 min</option>
+      <option value="15">every 15 min</option><option value="30">every 30 min</option>
+      <option value="60">every hour</option>
+    </select>
+  </label>
+  <button id="refresh" class="sync-refresh" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.9-3M4 5v4h4M4 13a8 8 0 0 0 14.9 3M20 19v-4h-4"/></svg>Refresh now</button>
+</div>
+<div id="cal"></div><div id="calendar-loading" aria-hidden="true" hidden></div></main>
 </div>
 <dialog id="dlg" aria-labelledby="dt"><div class="dialog-body">
   <form method="dialog"><button class="icon-button dialog-close" aria-label="Close event details" title="Close">×</button></form>

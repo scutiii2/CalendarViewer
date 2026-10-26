@@ -134,11 +134,13 @@ function splitDescription(text) {
   return { description: value.slice(0, footer.index).trim(), footer: value.slice(footer.index).replace(/^\s*[_-]{5,}\s*/g, '').trim() };
 }
 
-const refreshControls = document.querySelector('.top-actions');
-function placeRefreshControls() {
-  const right = document.querySelector('.fc-header-toolbar .fc-toolbar-chunk:last-child');
-  if (right && refreshControls.parentElement !== right) right.append(refreshControls);
+// The sync strip lives in <main> in the markup; move it once so it sits directly under FullCalendar's toolbar.
+const syncStrip = document.getElementById('sync-strip');
+function placeSyncStrip() {
+  const toolbar = document.querySelector('#cal .fc-header-toolbar');
+  if (toolbar && toolbar.nextElementSibling !== syncStrip) toolbar.after(syncStrip);
 }
+const setSyncState = state => { syncStrip.dataset.state = state; };
 
 const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
   initialView: 'timeGridWorkWeek',
@@ -148,11 +150,10 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
   slotDuration: '00:30:00',
   scrollTime: currentScrollTime(),
   allDaySlot: true,
-  headerToolbar: { left: 'today prev,next timeGridDay,timeGridWorkWeek,timeGridWeek,dayGridMonth', center: 'title', right: '' },
+  headerToolbar: { left: 'today prev,next title', center: '', right: 'timeGridDay,timeGridWorkWeek,timeGridWeek,dayGridMonth' },
   buttonText: { today: 'Today', timeGridDay: 'Day', timeGridWorkWeek: 'Work week', timeGridWeek: 'Week', dayGridMonth: 'Month' },
   views: { timeGridWorkWeek: { type: 'timeGridWeek', weekends: false } },
   datesSet(arg) {
-    requestAnimationFrame(placeRefreshControls);
     if (arg.view.type.startsWith('timeGrid')) focusCurrentTime();
   },
   dayHeaderContent(arg) {
@@ -244,7 +245,7 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
   }
 });
 calendar.render();
-placeRefreshControls();
+placeSyncStrip();
 // Update finished-event styling even when the page stays open without navigation.
 setInterval(updateEventStatus, 30000);
 
@@ -587,7 +588,11 @@ async function addFiles(files) {
   calendar.refetchEvents();
 }
 
-const setStatus = msg => { document.getElementById('status').textContent = msg; };
+const setStatus = msg => {
+  const status = document.getElementById('status');
+  status.textContent = msg;
+  status.title = msg; // The strip truncates long messages; the full text stays available on hover.
+};
 
 async function api(path, opts) {
   const r = await fetch(path, opts);
@@ -615,10 +620,12 @@ async function loadFeeds() {
   document.getElementById('cal').setAttribute('aria-busy', 'true');
   skeleton.hidden = !!document.querySelector('.fc-event');
   setStatus('Refreshing…');
+  setSyncState('busy');
   try { await fetchFeeds(); }
   finally {
     pendingRefreshes--;
     if (!pendingRefreshes) {
+      if (syncStrip.dataset.state === 'busy') setSyncState('error');
       skeleton.hidden = true;
       main.classList.remove('is-refreshing');
       document.getElementById('cal').setAttribute('aria-busy', 'false');
@@ -629,7 +636,7 @@ async function loadFeeds() {
 async function fetchFeeds() {
   let feeds;
   try { feeds = await (await api('/api/feeds')).json(); }
-  catch { return setStatus('Server not running (npm start / node server.js). Link feeds off.'); }
+  catch { setSyncState('error'); return setStatus('Server not running. Start it with calendar.bat. Link feeds are off.'); }
   setStatus('Refreshing…');
   const results = await Promise.allSettled(feeds.map(async f => {
     const icsText = await (await api('/api/ics/' + f.id)).text();
@@ -652,7 +659,8 @@ async function fetchFeeds() {
   calendar.refetchEvents();
   runAlertCheck(false);
   scheduleAlertSync();
-  setStatus((errors.length ? 'Errors – ' + errors.join('; ') : 'Updated') + ' ' + new Date().toLocaleTimeString() + '.');
+  setSyncState(errors.length ? 'error' : 'ok');
+  setStatus(errors.length ? 'Errors – ' + errors.join('; ') : 'Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
 }
 
 document.getElementById('refresh').onclick = loadFeeds;
