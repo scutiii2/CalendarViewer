@@ -95,16 +95,17 @@
   .event-title { white-space: normal; overflow-wrap: anywhere; }
   .event-card { --event-color: #16833b !important; }
   .event-card.completed { --event-color: #808080 !important; }
-  /* Every event is the same card as the Up next list: bordered, rounded, with a status bar on the left. */
+  /* Every event is the same card as the Up next list: a status-coloured frame around a darker fill of the same colour. */
+  .fc .fc-event, .up-item { --card-accent: #16833b; }
+  .fc .fc-event:has(.completed), .fc .fc-event:has(.canceled) { --card-accent: #808080; }
   .fc .fc-event {
-    background: var(--panel) !important;
-    border: 1px solid var(--border) !important;
-    border-left: 3px solid #16833b !important;
+    background: color-mix(in srgb, var(--card-accent) 18%, var(--panel)) !important;
+    border: 1px solid color-mix(in srgb, var(--card-accent) 50%, var(--panel)) !important;
+    border-left: 3px solid var(--card-accent) !important;
     border-radius: 8px !important;
     color: var(--text) !important;
   }
-  .fc .fc-event:has(.completed), .fc .fc-event:has(.canceled) { border-left-color: #808080 !important; }
-  .fc .fc-event:hover { background: var(--surface-muted) !important; }
+  .fc .fc-event:hover { background: color-mix(in srgb, var(--card-accent) 26%, var(--panel)) !important; }
   .fc .fc-event .fc-event-main { color: var(--text); }
   .fc .fc-timegrid-event:hover { z-index: 10; box-shadow: 0 3px 12px #0003; }
   .all-day-card { padding: 2px 8px; }
@@ -309,7 +310,7 @@
   .fc .fc-popover-header { background: var(--surface-muted); color: var(--text); font-size: 12px; }
   .up-next { position: absolute; z-index: 2; width: 200px; box-sizing: border-box; padding-left: 12px; border-left: 1px solid var(--border); overflow: auto; display: grid; align-content: start; gap: 8px; }
   .up-next h2 { margin: 0 0 2px; font-size: 12px; font-weight: 500; color: var(--muted); }
-  .up-item { padding: 5px 8px; border: 1px solid var(--border); border-left: 3px solid #16833b; border-radius: 8px; }
+  .up-item { padding: 5px 8px; border: 1px solid color-mix(in srgb, var(--card-accent) 50%, var(--panel)); border-left: 3px solid var(--card-accent); border-radius: 8px; background: color-mix(in srgb, var(--card-accent) 18%, var(--panel)); }
   .up-title { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
   .up-when { margin-top: 2px; color: var(--muted); font-size: 11px; }
   .up-join { display: inline-block; margin-top: 6px; padding: 2px 10px; border-radius: 4px; background: var(--brand); color: #fff; font-size: 11px; font-weight: 600; text-decoration: none; }
