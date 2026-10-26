@@ -160,6 +160,12 @@
   .event-card { position: relative; }
   .event-card.has-alert { padding-right: 24px; }
   .event-bell { position: absolute; top: 5px; right: 6px; width: 12px; height: 12px; color: var(--muted); }
+  .event-bell.muted { color: var(--danger); }
+  .event-bell.none { opacity: .45; }
+  .up-item { position: relative; }
+  .up-item .event-bell { top: 7px; right: 8px; }
+  .up-item .up-title { padding-right: 16px; }
+  .event-card.month-chip .event-bell { position: static; flex: none; align-self: center; margin-left: auto; }
   .alert-section { margin: 4px 0 0; padding-top: 16px; border-top: 1px solid var(--border); }
   .alert-section h3 { font-size: 14px; margin: 0 0 10px; }
   .alert-modes { display: grid; gap: 6px; }

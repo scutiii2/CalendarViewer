@@ -10,6 +10,25 @@ let alertRules, firedAlerts;
 try { alertRules = sanitizeRules(JSON.parse(localStorage.getItem(ALERT_RULES_KEY))); } catch { alertRules = sanitizeRules(null); }
 try { firedAlerts = JSON.parse(localStorage.getItem(ALERT_FIRED_KEY)) || {}; } catch { firedAlerts = {}; }
 const BELL_PATH = '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>';
+const BELL_OFF_PATH = BELL_PATH + '<path d="M3 3l18 18"/>';
+
+// A bell on every card that will alert, and a crossed bell on upcoming cards that will not.
+function alertIndicator(key, sourceKeys, finishMs) {
+  const rules = alertRules;
+  const event = rules.events[key];
+  let state = 'on', label = 'Alert set';
+  if (event && event.mode === 'muted') { state = 'muted'; label = 'Alerts muted for this event'; }
+  else if (rules.global.muted) { state = 'muted'; label = 'All alerts muted'; }
+  else if (!resolveOffsets(rules, key, sourceKeys).length) { state = 'none'; label = 'No alert set'; }
+  if (state !== 'on' && finishMs <= Date.now()) return null;
+  const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  icon.setAttribute('class', 'event-bell ' + state);
+  icon.setAttribute('viewBox', '0 0 24 24');
+  icon.setAttribute('role', 'img');
+  icon.setAttribute('aria-label', label);
+  icon.innerHTML = '<title>' + label + '</title>' + (state === 'on' ? BELL_PATH : BELL_OFF_PATH);
+  return icon;
+}
 const eventSourceKeys = p => (p.sourceDetails || []).map(s => s.key).filter(Boolean);
 
 function isReservedGreen(color) {
@@ -223,6 +242,9 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
       title.className = 'mc-title';
       title.textContent = arg.event.title;
       chip.append(title);
+      const p = arg.event.extendedProps;
+      const bell = alertIndicator(eventAlertKey(p.uid, arg.event.title), eventSourceKeys(p), Number(chip.dataset.finish));
+      if (bell) chip.append(bell);
       return { domNodes: [chip] };
     }
     const card = document.createElement('div');
@@ -236,13 +258,9 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
     title.textContent = arg.event.title;
     card.append(title);
     const p = arg.event.extendedProps;
-    if (resolveOffsets(alertRules, eventAlertKey(p.uid, arg.event.title), eventSourceKeys(p)).length) {
+    const bell = alertIndicator(eventAlertKey(p.uid, arg.event.title), eventSourceKeys(p), Number(card.dataset.finish));
+    if (bell) {
       card.classList.add('has-alert');
-      const bell = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      bell.setAttribute('class', 'event-bell');
-      bell.setAttribute('viewBox', '0 0 24 24');
-      bell.setAttribute('aria-label', 'Alert set');
-      bell.innerHTML = BELL_PATH;
       card.append(bell);
     }
     const memberships = arg.event.extendedProps.sourceDetails || [];
@@ -369,6 +387,8 @@ function renderUpNext() {
       dots.append(dot);
     });
     item.append(dots);
+    const bell = alertIndicator(o.key, o.sourceKeys, Infinity);
+    if (bell) item.append(bell);
     const day = new Date(o.start).toDateString() === new Date(now).toDateString() ? '' : new Date(o.start).toLocaleDateString(undefined, { weekday: 'short' }) + ' ';
     const when = document.createElement('div');
     when.className = 'up-when';
