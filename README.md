@@ -9,9 +9,10 @@ calendar.bat        double-click launcher (menu), or: calendar.bat start|stop|st
 run.bat             one-click: start the server if needed, restart it after an update, open the calendar
 VERSION             application version, reported by the server at /api/version
 scripts/            calendar.ps1 (start, stop, startup, toast) and make_zip.py
-src/server/         server.js (entry point), alerts.js (background alerts), startup.js
-src/shared/         alert-logic.js, used by both the page and the server
-src/web/            index.html, styles.css, app.js (the calendar page)
+src/server/         server.js (entry point), alerts.js (background alerts), reminders.js (snoozes), backups.js,
+                    json-store.js (atomic JSON files), startup.js
+src/shared/         alert-logic.js and backup.js (page and server), storage.js and search.js (page only)
+src/web/            index.html, styles.css, app.js (the calendar page), backup-ui.js
 vendor/             FullCalendar, ical.js and third-party licences
 test/               run with: node --test
 data/               your feeds and alert state (created at run time, private)
