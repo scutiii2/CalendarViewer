@@ -3,6 +3,32 @@
 const MAX_OCCURRENCES = 2000;
 const MAX_OFFSET_MIN = 60 * 24 * 30;
 const eventAlertKey = (uid, title) => uid || 'fb:' + title;
+const isCancelledTitle = title => /^\s*cancell?ed\b/i.test(title);
+
+function visibleEvents(events, hideCancelled) {
+  return hideCancelled ? events.filter(e => !isCancelledTitle(e.title)) : events;
+}
+
+// Call after deduplication so one meeting from several calendars cannot conflict with itself.
+function markConflicts(events) {
+  const marked = events.map(e => ({ ...e, extendedProps: { ...e.extendedProps, conflicts: [] } }));
+  const timed = marked.filter(e => !e.allDay && !isCancelledTitle(e.title) && e.start && e.end > e.start)
+    .sort((a, b) => a.start - b.start);
+  timed.forEach((event, i) => {
+    for (let j = i + 1; j < timed.length && timed[j].start < event.end; j++) {
+      event.extendedProps.conflicts.push(timed[j].title);
+      timed[j].extendedProps.conflicts.push(event.title);
+    }
+  });
+  return marked;
+}
+
+function syncHealth(snapshot, now, staleAfter = 10 * 60000) {
+  const fetchedAt = Number.isFinite(snapshot.fetchedAt) ? snapshot.fetchedAt : null;
+  const state = snapshot.fetching ? 'refreshing' : snapshot.failed ? 'error' :
+    fetchedAt === null ? 'pending' : now - fetchedAt >= staleAfter ? 'stale' : 'current';
+  return { state, fetchedAt };
+}
 
 function normalizeOffsets(list) {
   const valid = (Array.isArray(list) ? list : []).map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= MAX_OFFSET_MIN);
@@ -49,12 +75,12 @@ function maxConfiguredOffset(rules) {
   return all.length ? Math.max(...all) : 0;
 }
 
-// occurrences: [{key, title, start (ms), sourceKeys}]. Returns alerts whose time has passed for events not yet started.
+// occurrences: [{key, title, start (ms), sourceKeys}]. Returns alerts whose time has passed for non-cancelled events not yet started.
 // When several offsets of one occurrence are due at once, only the nearest one is shown; the rest are marked superseded.
 function findDueAlerts(rules, occurrences, fired, now) {
   const due = [];
   occurrences.forEach(occ => {
-    if (occ.start <= now) return;
+    if (occ.start <= now || isCancelledTitle(occ.title)) return;
     const alerts = resolveOffsets(rules, occ.key, occ.sourceKeys)
       .map(offset => ({ id: occ.key + '|' + occ.start + '|' + offset, offset, occ }))
       .filter(a => !(a.id in fired) && occ.start - a.offset * 60000 <= now);
@@ -214,7 +240,7 @@ function collectOccurrences(sources, now, horizonMs) {
 // The next events that have not started, soonest first, skipping cancelled ones (for the Day view "Up next" list).
 function pickUpNext(occurrences, now, limit = 3) {
   return occurrences
-    .filter(o => o.start > now && !/^\s*cancell?ed\b/i.test(o.title))
+    .filter(o => o.start > now && !isCancelledTitle(o.title))
     .sort((x, y) => x.start - y.start)
     .slice(0, limit);
 }
@@ -223,6 +249,7 @@ if (typeof module !== 'undefined') {
   module.exports = {
     MAX_OFFSET_MIN, eventAlertKey, normalizeOffsets, formatOffset, sanitizeRules, calendarDefaultOffsets, resolveOffsets,
     maxConfiguredOffset, findDueAlerts, formatRemaining, alertBody, parseIcs, expand, deduplicateEvents,
-    readableUrl, isTeamsMeeting, findMeetingUrl, collectOccurrences, pickUpNext
+    readableUrl, isTeamsMeeting, findMeetingUrl, collectOccurrences, pickUpNext,
+    isCancelledTitle, visibleEvents, markConflicts, syncHealth
   };
 }

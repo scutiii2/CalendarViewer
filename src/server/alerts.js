@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { createReminderStore } = require('./reminders');
 
 global.ICAL = require('../../vendor/ical.min.js');
 const logic = require('../shared/alert-logic.js');
@@ -15,30 +16,48 @@ const b64 = text => Buffer.from(String(text || ''), 'utf8').toString('base64');
 function windowsToast(occ, body, onResult) {
   const child = spawn('powershell.exe', [
     '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, '..', '..', 'scripts', 'calendar.ps1'),
-    'toast', '-Title', b64(occ.title), '-Body', b64(body), '-Url', b64(occ.join)
+    'toast', '-Title', b64(occ.title), '-Body', b64(body), '-Url', b64(occ.join), '-SnoozeUrl', b64(occ.snoozeUrl)
   ], { windowsHide: true, stdio: 'ignore' });
   child.on('error', e => onResult(e.message));
   child.on('exit', code => onResult(code ? 'powershell exited with code ' + code : null));
 }
 
-function createAlertService({ readFeeds, fetchText, notify = windowsToast, stateFile, firedFile, now = Date.now, log = console.log }) {
+function createAlertService({ readFeeds, fetchText, notify = windowsToast, stateFile, firedFile, remindersFile, snoozeBaseUrl, now = Date.now, log = console.log }) {
   const readJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; } };
-  const writeJson = (file, value) => { try { fs.writeFileSync(file, JSON.stringify(value)); } catch (e) { log('Could not save ' + path.basename(file) + ': ' + e.message); } };
+  const writeJson = (file, value, strict = false) => {
+    try {
+      fs.writeFileSync(strict ? file + '.tmp' : file, JSON.stringify(value));
+      if (strict) fs.renameSync(file + '.tmp', file);
+    } catch (e) { if (strict) throw e; log('Could not save ' + path.basename(file) + ': ' + e.message); }
+  };
 
   let state = readJson(stateFile, {});
   state = { rules: logic.sanitizeRules(state.rules), sources: Array.isArray(state.sources) ? state.sources : [] };
   const fired = readJson(firedFile, {});
+  const reminders = createReminderStore({ file: remindersFile || path.join(path.dirname(stateFile), 'alerts-snoozed.json'), now });
   const feedCache = new Map();  // feedId -> { events, fetchedAt }
+  const feedHealth = new Map(); // refresh state, independent of the last successful snapshot
   const localCache = new Map(); // alertKey -> { text, events }
   let toastError = null;
   let running = null;
+  let feedGeneration = 0;
 
   async function refreshFeeds(feeds) {
+    const generation = feedGeneration;
     await Promise.all(feeds.map(async feed => {
       const cached = feedCache.get(feed.id);
       if (cached && now() - cached.fetchedAt < FEED_REFRESH_MS) return;
-      try { feedCache.set(feed.id, { events: logic.parseIcs(await fetchText(feed)), fetchedAt: now() }); }
-      catch (e) { log('Alert feed refresh failed for ' + feed.name + ': ' + e.message); }
+      feedHealth.set(feed.id, { fetching: true });
+      try {
+        const events = logic.parseIcs(await fetchText(feed));
+        if (generation !== feedGeneration) return;
+        feedCache.set(feed.id, { events, fetchedAt: now() });
+        feedHealth.set(feed.id, { failed: false });
+      } catch (e) {
+        if (generation !== feedGeneration) return;
+        feedHealth.set(feed.id, { failed: true });
+        log('Alert feed refresh failed for ' + feed.name + ': ' + e.message);
+      }
     }));
   }
 
@@ -67,29 +86,51 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
   // Marks due alerts as fired; shows them unless silent. Uses cached feed data only.
   function check(silent) {
     const t = now();
-    const horizon = logic.maxConfiguredOffset(state.rules) * 60000;
+    const horizon = Math.max(logic.maxConfiguredOffset(state.rules) * 60000, reminders.horizon());
     if (!horizon) return 0;
-    let due;
-    try { due = logic.findDueAlerts(state.rules, logic.collectOccurrences(currentSources(readFeeds()), t, horizon), fired, t); }
+    let due, deferred;
+    const suppressed = new Set(reminders.status().pending.map(s => s.key + '|' + s.start));
+    try {
+      const sources = currentSources(readFeeds());
+      const occurrences = logic.collectOccurrences(sources, t, horizon);
+      due = logic.findDueAlerts(state.rules, occurrences, fired, t);
+      const freshSources = sources.filter(source => {
+        const key = source.alertKey;
+        if (key.startsWith('l:')) return true;
+        const id = key.slice(2), health = feedHealth.get(id), cached = feedCache.get(id);
+        return cached && !health?.failed && !health?.fetching && t - cached.fetchedAt < FEED_REFRESH_MS;
+      });
+      const fresh = logic.collectOccurrences(freshSources, t, horizon);
+      deferred = reminders.takeDue(fresh, state.rules, silent);
+    }
     catch (e) { log('Alert check failed: ' + e.message); return 0; }
+    const deliver = occ => {
+      let snoozeUrl;
+      if (snoozeBaseUrl && t + 5 * 60000 < occ.start) {
+        try { snoozeUrl = snoozeBaseUrl + '/alerts/snooze/' + reminders.issueTicket(occ); }
+        catch (e) { log('Could not save snooze action: ' + e.message); }
+      }
+      notify({ ...occ, snoozeUrl }, logic.alertBody(occ, t), err => { toastError = err; if (err) log('Windows toast failed: ' + err); });
+    };
     due.forEach(a => {
       fired[a.id] = a.occ.start;
-      if (silent || a.superseded) return;
-      notify(a.occ, logic.alertBody(a.occ, t), err => { toastError = err; if (err) log('Windows toast failed: ' + err); });
+      if (silent || a.superseded || suppressed.has(a.occ.key + '|' + a.occ.start)) return;
+      deliver(a.occ);
     });
+    deferred.forEach(a => deliver(a.occ));
     Object.keys(fired).forEach(id => { if (fired[id] < t - 86400000) delete fired[id]; });
     if (due.length) writeJson(firedFile, fired);
-    return due.length;
+    return due.length + deferred.length;
   }
 
   function tick() {
     if (running) return running;
-    running = (async () => {
+    running = Promise.resolve().then(async () => {
       try {
-        if (logic.maxConfiguredOffset(state.rules)) await refreshFeeds(readFeeds());
+        if (logic.maxConfiguredOffset(state.rules) || reminders.horizon()) await refreshFeeds(readFeeds());
         check(false);
       } finally { running = null; }
-    })();
+    });
     return running;
   }
 
@@ -101,23 +142,49 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
         .map(s => ({ alertKey: s.alertKey, name: String(s.name || ''), enabled: s.enabled !== false, icsText: typeof s.icsText === 'string' ? s.icsText : undefined }))
     };
     const changed = JSON.stringify(next) !== JSON.stringify(state);
-    state = next;
     if (!changed) return;
-    writeJson(stateFile, state);
+    writeJson(stateFile, next, true);
+    state = next;
     for (const key of localCache.keys()) if (!state.sources.some(s => s.alertKey === key)) localCache.delete(key);
     // Edits must not announce alerts that were already past; the next tick also fetches any new feeds.
     check(true);
     tick();
   }
 
-  const status = () => ({ serverToasts: process.platform === 'win32' && !toastError });
+  const status = () => ({
+    serverToasts: process.platform === 'win32' && !toastError,
+    snoozes: reminders.status(),
+    feeds: readFeeds().map(feed => ({
+      id: feed.id,
+      ...logic.syncHealth({ fetchedAt: feedCache.get(feed.id)?.fetchedAt, ...feedHealth.get(feed.id) }, now()),
+      ...(!logic.maxConfiguredOffset(state.rules) ? { state: 'inactive' } : {})
+    }))
+  });
 
   function start() {
     tick();
     return setInterval(tick, TICK_MS);
   }
 
-  return { setState, status, start, tick, check };
+  async function snooze(reference) {
+    if (!reference || typeof reference.key !== 'string' || !Number.isFinite(reference.start)) throw new Error('Invalid reminder.');
+    await tick();
+    const horizon = reference.start - now();
+    if (horizon <= 0 || horizon > logic.MAX_OFFSET_MIN * 60000) throw new Error('This event is no longer upcoming.');
+    const occ = logic.collectOccurrences(currentSources(readFeeds()), now(), horizon)
+      .find(o => o.key === reference.key && o.start === reference.start);
+    if (!occ || logic.isCancelledTitle(occ.title) || !logic.resolveOffsets(state.rules, occ.key, occ.sourceKeys).length) {
+      throw new Error('This reminder is cancelled or inactive.');
+    }
+    return reminders.schedule(occ);
+  }
+
+  return {
+    setState, status, start, tick, check, snooze,
+    snoozeTicket: token => snooze(reminders.consumeTicket(token)),
+    getState: () => JSON.parse(JSON.stringify(state)),
+    invalidateFeeds: () => { feedGeneration++; feedCache.clear(); feedHealth.clear(); }
+  };
 }
 
 module.exports = { createAlertService };

@@ -38,7 +38,7 @@ test('server serves the web files safely and guards the startup endpoint', async
     req.end(body);
   });
 
-  for (const [url, type] of [['/', 'text/html'], ['/styles.css', 'text/css'], ['/app.js', 'text/javascript'], ['/shared/alert-logic.js', 'text/javascript'], ['/vendor/ical.min.js', 'text/javascript']]) {
+  for (const [url, type] of [['/', 'text/html'], ['/styles.css', 'text/css'], ['/app.js', 'text/javascript'], ['/backup-ui.js', 'text/javascript'], ['/shared/alert-logic.js', 'text/javascript'], ['/shared/search.js', 'text/javascript'], ['/shared/backup.js', 'text/javascript'], ['/shared/storage.js', 'text/javascript'], ['/vendor/ical.min.js', 'text/javascript']]) {
     const r = await request('GET', url);
     assert.equal(r.status, 200, url);
     assert.ok(r.type.startsWith(type), url);
@@ -56,4 +56,20 @@ test('server serves the web files safely and guards the startup endpoint', async
   assert.equal(await post({}), 403, 'missing header');
   assert.equal(await post({ 'X-Calendar-Action': '1', Origin: 'https://evil.example' }), 403, 'foreign origin');
   assert.equal(await post({ 'X-Calendar-Action': '1', Host: 'evil.example:' + port }), 403, 'foreign host');
+
+  const client = { localSources: [], feedPreferences: [], alertRules: { global: { muted: false }, calendars: {}, events: {} },
+    preferences: { theme: 'system', workingHours: { start: '08:00', end: '18:00' }, autoRefreshMinutes: 0, hideCancelled: false, view: 'listWeek' } };
+  assert.equal((await request('POST', '/api/backup/export', {}, JSON.stringify(client))).status, 403);
+  const headers = { 'X-Calendar-Action': '1', 'Content-Type': 'application/json' };
+  const exported = await request('POST', '/api/backup/export', headers, JSON.stringify(client));
+  assert.equal(exported.status, 200);
+  const backup = JSON.parse(exported.data);
+  assert.equal(backup.format, 'ics-calendar-viewer-backup');
+  const restored = await request('POST', '/api/backup/restore', headers, JSON.stringify({ backup, previous: client }));
+  assert.equal(restored.status, 200);
+  assert.equal((await request('GET', '/api/backup/recovery')).status, 403);
+  assert.equal((await request('GET', '/api/backup/recovery', headers)).status, 200);
+  assert.equal((await request('POST', '/api/alerts/snooze', {}, '{}')).status, 403);
+  assert.equal((await request('POST', '/api/alerts/snooze', headers, '{}')).status, 400);
+  assert.equal((await request('GET', '/alerts/snooze/' + 'a'.repeat(48))).status, 400);
 });

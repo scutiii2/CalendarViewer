@@ -8,6 +8,10 @@
 <script src="/vendor/ical.min.js"></script>
 <script src="/vendor/fullcalendar.min.js"></script>
 <script src="/shared/alert-logic.js"></script>
+<script src="/shared/search.js"></script>
+<script src="/shared/backup.js"></script>
+<script src="/shared/storage.js"></script>
+<script src="/backup-ui.js"></script>
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -49,15 +53,25 @@
       <button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
     </div>
   </div>
+  <label class="sb-switch"><span>Hide cancelled events</span><input type="checkbox" id="hide-cancelled" role="switch"></label>
   <label class="sb-switch"><span>Mute all alerts</span><input type="checkbox" id="mute-all" role="switch"></label>
   <label id="startup-row" class="sb-switch" hidden title="The server starts in the background at sign-in so alerts work with the browser closed."><span>Start with Windows</span><input type="checkbox" id="startup-toggle" role="switch"></label>
   <div id="startup-state" class="startup-state" role="status" aria-live="polite" hidden><span class="state-icon" aria-hidden="true"></span><span id="startup-state-text"></span></div>
   <div class="sb-status"><span class="sb-dot" aria-hidden="true"></span><span id="notify-status" role="status"></span></div>
   <button id="notify-enable" type="button" hidden>Enable system notifications</button>
+  <details class="backup-settings"><summary>Backup &amp; restore</summary>
+    <div class="backup-actions"><button id="backup-export" type="button">Export backup</button><button id="backup-import" type="button">Restore backup</button><button id="backup-undo" type="button">Recovery backup</button></div>
+    <p>Local backups contain private calendar links. Keep them secure.</p>
+    <input id="backup-file" type="file" accept=".json,application/json" hidden>
+  </details>
 </div>
 <div id="drop-overlay" class="drop-overlay" hidden>Drop .ics files to add</div>
 </aside>
 <main>
+<section id="search-tools" aria-label="Search events">
+  <label for="event-search">Search events</label><input id="event-search" type="search" placeholder="Title or location" aria-describedby="search-status">
+  <button id="clear-search" type="button" disabled>Clear</button><p id="search-status" role="status" aria-live="polite" aria-atomic="true"></p>
+</section>
 <div id="sync-strip" class="sync-strip" data-state="idle">
   <span class="sync-dot" aria-hidden="true"></span>
   <span id="note" role="status" aria-live="polite"><span id="status"></span></span>
@@ -78,6 +92,7 @@
 <dialog id="dlg" aria-labelledby="dt"><div id="dlg-bar" class="dlg-bar"></div><div class="dialog-body">
   <form method="dialog"><button class="icon-button dialog-close" aria-label="Close event details" title="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></form>
   <div id="event-status" class="event-status"></div>
+  <p id="event-conflicts" class="event-conflicts" hidden></p>
   <h2 id="dt"></h2><div id="dm"></div>
   <div class="detail-row"><svg class="detail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6m10-6v6M3 11h18"/></svg><div><div id="event-date" class="detail-strong"></div><div id="event-time" class="detail-sub"></div></div></div>
   <div id="location-row" class="detail-row"><svg class="detail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg><div id="event-location"></div></div>
@@ -105,6 +120,10 @@
   <p class="alert-hint">Applies to every event in this calendar unless an event has its own setting.</p>
 </div></dialog>
 <div id="toasts" aria-live="assertive"></div>
+<dialog id="backup-preview" aria-labelledby="backup-title"><div class="dialog-body">
+  <h2 id="backup-title">Backup &amp; restore</h2><p id="backup-summary"></p><p id="backup-error" role="alert"></p>
+  <div class="backup-actions"><button id="backup-restore" type="button" class="primary" disabled>Replace with backup</button><button id="backup-cancel" type="button">Cancel</button></div>
+</div></dialog>
 
 <script src="/app.js"></script>
 </body>

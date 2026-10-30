@@ -254,12 +254,24 @@
   #add button { min-height: 32px; border-color: var(--brand); background: var(--brand); color: #fff; font-size: 13px; }
   #add button:hover { background: var(--brand-hover); }
   #drop { display: block; padding: 18px 10px; border: 1px dashed var(--border); border-radius: 6px; color: var(--muted); font-size: 12px; line-height: 1.5; text-align: center; }
-  #sources { flex: 1; min-height: 0; overflow: auto; display: grid; align-content: start; gap: 2px; }
+  #sources { flex: 1; min-height: 0; overflow: auto; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 2px; }
   .src { position: relative; display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 2px 0 6px; border-radius: 8px; }
   .src:hover { background: var(--surface-muted); }
   .src-check { appearance: none; flex: none; width: 16px; height: 16px; margin: 0; border: 2px solid var(--source-color); border-radius: 4px; background: transparent; }
   .src-check:checked { background: var(--source-color); box-shadow: inset 0 0 0 2px var(--bg); }
   .src-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+  .src-labels { flex: 1; min-width: 0; padding: 6px 0; }
+  .src-labels .src-name { display: block; }
+  .src-labels .src-rename { width: 100%; box-sizing: border-box; }
+  .src-health { display: block; color: var(--muted); font-size: 10px; line-height: 1.5; }
+  .source-sync { display: block; white-space: normal; overflow-wrap: break-word; }
+  .source-sync[data-state=error], .source-sync[data-state=stale], .source-sync[data-state=offline] { color: var(--danger); }
+  .conflict-badge { display: inline-block; max-width: 100%; padding: 0 4px; border: 1px solid currentColor; border-radius: 4px; color: var(--text); font-size: 9px; line-height: 13px; vertical-align: middle; }
+  .event-card.has-conflict { box-shadow: inset 3px 0 0 var(--danger); }
+  .event-card.month-chip .conflict-badge { flex: none; }
+  .event-conflicts { margin: 0 0 8px; padding: 6px 8px; border-left: 3px solid var(--danger); background: var(--surface-muted); font-size: 13px; }
+  .alert-seg label:has(input:disabled) { opacity: .5; }
+  .alert-seg input:disabled { cursor: default; }
   .src.off .src-name { color: var(--muted); }
   .src-rename { flex: 1; min-width: 0; min-height: 28px; padding: 2px 6px; font-size: 14px; }
   .src .icon-button { flex: none; width: 28px; min-height: 28px; color: var(--muted); }
@@ -356,6 +368,38 @@
   #dd.clamped { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .dd-toggle { margin: 6px 0 0; padding: 0; min-height: 0; border: 0; background: none; color: var(--focus); font-size: 13px; }
   .dd-toggle:hover { background: none; text-decoration: underline; }
+  /* Search stays outside the calendar's scrolling date range. */
+  main { display: flex; flex-direction: column; gap: 10px; }
+  #cal { flex: 1; height: auto; min-height: 0; }
+  #search-tools { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; }
+  #search-tools label { font-size: 13px; font-weight: 500; }
+  #event-search { width: min(300px, 35vw); min-height: 34px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); }
+  #clear-search { min-height: 34px; font-size: 13px; }
+  #clear-search:disabled { opacity: .5; cursor: default; }
+  #search-status { flex: 1; min-width: 180px; margin: 0; font-size: 12px; color: var(--muted); }
+  /* Agenda keeps the native time column and date headings, with compact event details. */
+  .fc .fc-list { border-color: var(--border); border-radius: 6px; }
+  .fc .fc-list-day-cushion { background: var(--surface-muted); color: var(--text); font-size: 13px; }
+  .fc .fc-list-event { border: 0 !important; border-radius: 0 !important; }
+  .fc .fc-list-event > td { padding: 10px 12px; border-color: var(--border); background: var(--panel); }
+  .fc .fc-list-event:hover > td { background: var(--surface-muted); }
+  .fc .fc-list-event-time { width: 150px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .fc .fc-list-event-dot { border-color: var(--card-accent) !important; }
+  .event-card.agenda-card { min-height: 0; height: auto; padding: 2px 6px; }
+  .agenda-heading { display: flex; align-items: center; gap: 8px; }
+  .agenda-heading .event-title { flex: 1; min-width: 0; font-size: 13px; white-space: normal; }
+  .agenda-heading .event-bell { position: static; flex: none; }
+  .agenda-heading .conflict-badge { flex: none; }
+  .agenda-detail { margin-top: 3px; color: var(--muted); font-size: 12px; font-weight: 400; overflow-wrap: anywhere; }
+  .fc .fc-list-empty { background: var(--panel); color: var(--muted); }
+  .backup-settings { font-size: 12px; color: var(--muted); }
+  .backup-settings summary { cursor: pointer; color: var(--text); padding: 3px 0; }
+  .backup-settings p { margin: 6px 0 0; }
+  .backup-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .backup-settings button { min-height: 28px; padding: 3px 6px; font-size: 11px; }
+  #backup-error { color: var(--danger); overflow-wrap: anywhere; }
+  #backup-preview { max-width: min(520px, calc(100vw - 32px)); }
+  #backup-preview .dialog-body { display: block; }
   /* Only wide landscape (web) is supported for now: hide the app on portrait or narrow viewports. */
   .unsupported { display: none; }
   @media (max-width: 800px), (orientation: portrait) {

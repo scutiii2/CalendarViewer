@@ -8,7 +8,8 @@ param(
     [switch]$Browser,        # startup-on: also open the browser at sign-in
     [string]$Title,          # toast: base64 UTF-8 text (the server passes it this way so no quoting can break the call)
     [string]$Body = '',
-    [string]$Url = ''
+    [string]$Url = '',
+    [string]$SnoozeUrl = '' # toast: base64 local single-use snooze link
 )
 
 $ErrorActionPreference = 'Stop'
@@ -152,6 +153,7 @@ function Show-Toast {
     $text = Decode $Title
     $message = Decode $Body
     $link = Decode $Url
+    $snoozeLink = Decode $SnoozeUrl
 
     # A per-user registration gives the toast its own app name instead of "Windows PowerShell".
     $appId = 'ICSCalendarViewer'
@@ -165,6 +167,7 @@ function Show-Toast {
     $esc = { param($value) [Security.SecurityElement]::Escape($value) }
     $join = ''
     if ($link) { $join = '<action content="Join" arguments="' + (& $esc $link) + '" activationType="protocol"/>' }
+    if ($snoozeLink) { $join += '<action content="Snooze 5 min" arguments="' + (& $esc $snoozeLink) + '" activationType="protocol"/>' }
     # scenario="reminder" keeps the toast on screen until it is dismissed.
     $xml = '<toast scenario="reminder"><visual><binding template="ToastGeneric"><text>' + (& $esc $text) + '</text><text>' + (& $esc $message) + '</text></binding></visual><actions>' + $join + '<action content="Dismiss" arguments="dismiss" activationType="system"/></actions></toast>'
 

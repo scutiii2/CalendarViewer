@@ -56,6 +56,26 @@ test('muted events and disabled calendars stay silent', async () => {
   assert.equal(shown.length, 0);
 });
 
+test('cancelled events stay silent while active events still notify', async () => {
+  const { svc, clock, shown, settle } = setup(600 * M);
+  const start = clock.t + 20 * M;
+  const events = [
+    ics('cancel-1', 'Canceled: Sync', start),
+    ics('cancel-2', '  CANCELLED: Weekly', start),
+    ics('cancel-3', 'Status-only cancellation', start).replace('END:VEVENT', 'STATUS:CANCELLED\r\nEND:VEVENT'),
+    ics('active-1', 'Active meeting', start)
+  ].map(text => text.split('BEGIN:VEVENT')[1].split('END:VEVENT')[0]);
+  const text = 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:x\r\n' +
+    events.map(event => 'BEGIN:VEVENT' + event + 'END:VEVENT\r\n').join('') + 'END:VCALENDAR\r\n';
+  svc.setState({ rules: { calendars: { 'l:x': { enabled: true, offsets: [15] } } },
+    sources: [{ alertKey: 'l:x', name: 'Local', enabled: true, icsText: text }] });
+  await settle(svc);
+  assert.equal(shown.length, 0);
+  clock.t += 6 * M;
+  await settle(svc);
+  assert.deepEqual(shown.map(event => event.title), ['Active meeting']);
+});
+
 test('fired alerts and rules survive a restart', async () => {
   const { svc, options, clock, shown, settle } = setup(20 * M);
   svc.setState({ rules: { calendars: { 'f:F1': { enabled: true, offsets: [15] } } }, sources: [{ alertKey: 'f:F1', name: 'Work', enabled: true }] });
@@ -63,4 +83,143 @@ test('fired alerts and rules survive a restart', async () => {
   assert.equal(shown.length, 1);
   const again = createAlertService({ ...options, notify: () => assert.fail('alert fired again after restart') });
   await settle(again);
+});
+
+test('background sync health retains the last success on failure and clears it on recovery', async () => {
+  const { options, clock, settle } = setup(600 * M);
+  let fail = false;
+  const svc = createAlertService({ ...options, fetchText: async feed => {
+    if (fail) throw new Error('Feed unavailable');
+    return options.fetchText(feed);
+  } });
+  assert.equal(svc.status().feeds[0].state, 'inactive');
+  svc.setState({ rules: { calendars: { 'f:F1': { enabled: true, offsets: [15] } } }, sources: [] });
+  await settle(svc);
+  const firstSuccess = clock.t;
+  assert.equal(svc.status().feeds[0].fetchedAt, firstSuccess);
+  assert.equal(svc.status().feeds[0].state, 'current');
+  fail = true;
+  clock.t += 11 * M;
+  await settle(svc);
+  assert.equal(svc.status().feeds[0].fetchedAt, firstSuccess);
+  assert.equal(svc.status().feeds[0].state, 'error');
+  fail = false;
+  await settle(svc);
+  assert.equal(svc.status().feeds[0].state, 'current');
+  assert.equal(svc.status().feeds[0].fetchedAt, clock.t);
+});
+
+test('a snoozed reminder survives restart, suppresses ordinary offsets and fires once', async () => {
+  const { svc, options, clock, shown, settle } = setup(40 * M);
+  svc.setState({ rules: { calendars: { 'f:F1': { enabled: true, offsets: [30, 25] } } }, sources: [] });
+  await settle(svc);
+  clock.t += 11 * M;
+  await settle(svc);
+  assert.equal(shown.length, 1);
+  await svc.snooze({ key: 'feed-1', start: clock.t + 29 * M });
+  const again = createAlertService(options);
+  clock.t += 5 * M;
+  await settle(again);
+  assert.equal(shown.length, 2, 'one snooze, no duplicate ordinary 25-minute alert');
+  assert.equal(again.status().snoozes.deliveries.length, 1);
+  await settle(again);
+  assert.equal(shown.length, 2);
+});
+
+test('cancelled or muted events cannot be snoozed and stop pending snoozes', async () => {
+  const { svc, clock, shown, settle } = setup(600 * M);
+  const source = { alertKey: 'l:x', name: 'Local', enabled: true, icsText: ics('loc-1', 'Meeting', clock.t + 40 * M) };
+  const rules = { calendars: { 'l:x': { enabled: true, offsets: [15] } } };
+  svc.setState({ rules, sources: [source] });
+  await settle(svc);
+  const reference = { key: 'loc-1', start: clock.t + 40 * M };
+  await svc.snooze(reference);
+  source.icsText = source.icsText.replace('SUMMARY:Meeting', 'SUMMARY:Cancelled: Meeting');
+  svc.setState({ rules, sources: [source] });
+  await assert.rejects(svc.snooze(reference), /cancelled|inactive/i);
+  clock.t += 5 * M;
+  await settle(svc);
+  assert.equal(shown.length, 0);
+  assert.equal(svc.status().snoozes.pending.length, 0);
+});
+
+test('a partial state write leaves the previous saved calendars and rules intact', async t => {
+  const { svc, options, settle } = setup(600 * M);
+  svc.setState({ rules: { global: { muted: true } }, sources: [] });
+  await settle(svc);
+  const previous = fs.readFileSync(options.stateFile, 'utf8');
+  const write = fs.writeFileSync;
+  t.mock.method(fs, 'writeFileSync', (file, ...args) => {
+    if (String(file) === options.stateFile || String(file) === options.stateFile + '.tmp') {
+      write(file, '{partial');
+      throw new Error('Simulated disk full');
+    }
+    return write(file, ...args);
+  });
+  assert.throws(() => svc.setState({ rules: { global: { muted: false } }, sources: [] }), /disk full/);
+  assert.equal(fs.readFileSync(options.stateFile, 'utf8'), previous);
+  assert.equal(svc.getState().rules.global.muted, true);
+});
+
+test('snoozed feed reminders wait for fresh data when refresh fails', async () => {
+  const { options, clock, shown, settle } = setup(40 * M);
+  let failing = false;
+  const svc = createAlertService({ ...options, fetchText: async feed => {
+    if (failing) throw Error('Offline');
+    return options.fetchText(feed);
+  } });
+  svc.setState({ rules: { calendars: { 'f:F1': { enabled: true, offsets: [30] } } }, sources: [] });
+  await settle(svc);
+  await svc.snooze({ key: 'feed-1', start: clock.t + 40 * M });
+  failing = true;
+  clock.t += 5 * M;
+  await settle(svc);
+  assert.equal(shown.length, 0, 'stale data must not deliver a deferred reminder');
+  assert.equal(svc.status().snoozes.pending.length, 1);
+  failing = false;
+  await settle(svc);
+  assert.equal(shown.length, 1);
+});
+
+test('Windows snooze actions contain a single-use local link', async () => {
+  const { options, clock, settle } = setup(40 * M);
+  let notification;
+  const svc = createAlertService({ ...options, snoozeBaseUrl: 'http://localhost:3987', notify: (occ, _body, done) => { notification = occ; done(null); } });
+  svc.setState({ rules: { calendars: { 'f:F1': { enabled: true, offsets: [30] } } }, sources: [] });
+  await settle(svc);
+  clock.t += 11 * M;
+  await settle(svc);
+  assert.match(notification.snoozeUrl, /^http:\/\/localhost:3987\/alerts\/snooze\/[a-f0-9]{48}$/);
+  const token = notification.snoozeUrl.split('/').pop();
+  assert.equal((await svc.snoozeTicket(token)).dueAt, clock.t + 5 * M);
+  await assert.rejects(async () => svc.snoozeTicket(token), /used|expired|invalid/i);
+});
+
+test('starting without alert rules does not block later feed refreshes', async () => {
+  const { svc, settle } = setup(40 * M);
+  await svc.tick();
+  svc.setState({ rules: { calendars: { 'f:F1': { enabled: true, offsets: [15] } } }, sources: [] });
+  await settle(svc);
+  assert.equal(svc.status().feeds[0].state, 'current');
+});
+
+test('a fresh cancelled duplicate cannot revive a snooze from another stale feed', async () => {
+  const { options, clock, shown, settle } = setup(40 * M);
+  const start = clock.t + 40 * M;
+  let changed = false;
+  const svc = createAlertService({ ...options,
+    readFeeds: () => [{ id: 'F1', name: 'Stale' }, { id: 'F2', name: 'Fresh' }],
+    fetchText: async feed => {
+      if (changed && feed.id === 'F1') throw Error('Offline');
+      return ics('same', changed ? 'Cancelled: Meeting' : 'Meeting', start);
+    }
+  });
+  svc.setState({ rules: { calendars: { 'f:F1': { enabled: true, offsets: [30] }, 'f:F2': { enabled: true, offsets: [30] } } }, sources: [] });
+  await settle(svc);
+  await svc.snooze({ key: 'same', start });
+  changed = true;
+  clock.t += 5 * M;
+  await settle(svc);
+  assert.equal(shown.length, 0);
+  assert.equal(svc.status().snoozes.pending.length, 0);
 });

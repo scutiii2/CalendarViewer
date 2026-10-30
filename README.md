@@ -86,9 +86,13 @@ If you move the application folder, run the startup installer again from the new
 
 - Add an ICS link and a label in the sidebar, or drop/select `.ics` files.
 - Toggle calendars, edit their labels, change source colors, or remove them in the sidebar.
-- Use Today, the navigation arrows, and Day / Work week / Week / Month to navigate.
+- Use Today, the navigation arrows, and Day / Work week / Week / Month / Agenda to navigate. The selected view is remembered. Agenda is a compact weekly list with times, locations, source labels, alert indicators and overlap badges.
+- **Search events** filters titles and locations in the displayed date range, ignoring capitalization. Clear or press Escape to reset it; navigate dates to search another range. Search changes the display, while alert scheduling and overlap detection continue to consider all eligible events.
 - Open an event for dates, location, description, and a Join button when a Teams meeting link is available.
 - Matching events from multiple sources are merged and display their source badges and dots.
+- Use **Hide cancelled events** in the sidebar to hide events whose titles start with Canceled or Cancelled. The choice is remembered. Events explicitly marked `STATUS:CANCELLED` in the feed are always excluded.
+- Overlapping timed meetings show an **Overlap** badge; open a meeting to see the conflicting titles. Cancelled events, all-day events, hidden calendars and back-to-back meetings do not count. Matching events are merged before checking overlaps.
+- Each linked calendar shows separate **Page** and **Alerts** refresh states with its last successful refresh time. Failed refreshes retain cached events and their original timestamps. Page data is marked stale after twice the selected auto-refresh interval (at least 10 minutes); background alert data after 10 minutes. **Not needed** means no alert offsets are configured. Imported calendars are labelled **Local file**.
 - Upcoming and ongoing events are green; finished events turn gray. Green is reserved for event status.
 - Refresh manually or select an auto-refresh interval: 1, 5, 10, 15, 30, or 60 minutes. Off disables automatic polling.
 - Auto-refresh, Refresh, and the update status are in the upper-right calendar toolbar. The selected interval is remembered between visits.
@@ -101,7 +105,9 @@ Get an in-app toast and a system notification a set time before an event starts.
 - **Single event:** open an event and choose *Use calendar default*, *Custom alerts for this event*, or *Mute this event*. The setting applies to every occurrence of a recurring event and replaces the calendar default.
 - **Mute everything:** tick *Mute all alerts* in the sidebar. Settings are kept.
 - Events with an active alert show a bell icon. Hidden calendars do not alert.
+- Cancelled events never alert, including events with custom reminders. Their bell is muted and their reminder controls are disabled; saved rules are kept in case the event becomes active again.
 - Toasts stay until dismissed and include a Join button for Teams meetings.
+- **Snooze 5 min** defers an upcoming reminder for five minutes, provided that ends before the meeting starts. In-app snooze requires the background server; failure leaves the original alert visible. The Windows Snooze button opens a small local confirmation tab that you can close. Both buttons use the same saved background queue, so snoozes survive a server restart. The server checks current event details, cancellation, calendar visibility and alert rules before sending again; a failed remote refresh keeps the snooze pending until fresh data arrives or the meeting starts.
 - **Windows notifications come from the background server**, so they appear even when the browser is closed. The page sends its alert settings and imported calendars to the server, which re-fetches feed links every 5 minutes and checks every 30 seconds. They stay on screen until dismissed, and the Join button opens a Teams meeting link.
 - The server must be running: use `calendar.bat` (option 1 or 3). If the server is stopped, no alert fires; alerts that came due while it was stopped fire when it starts, if the event has not started.
 - If the server cannot show Windows notifications, or is not reachable, the page falls back to browser notifications (needs browser permission) while it is open.
@@ -120,6 +126,14 @@ Use the same browser profile and address to retain that browser data; clearing s
 The server listens only on `127.0.0.1`. This application does not edit the source calendars.
 
 Calendar data stays on your machine, in `data/` and browser storage. The app contacts only the calendar hosts you add (including redirects); opening a meeting or description link contacts its destination. All libraries are bundled locally: there is no CDN request and no telemetry.
+
+## Backup and restore
+
+Open **Backup & restore** in the sidebar to export a local JSON backup. It includes linked calendar URLs, imported ICS files, calendar labels/colors/visibility, alert rules, theme, working hours, refresh interval, hide-cancelled choice and selected view. It does not transfer the Windows startup setting, cached feed snapshots, already-fired alerts or pending snoozes.
+
+Choose **Restore backup** to validate a file and preview the calendar/rule counts before replacing your current configuration. Restore checks browser storage first and saves the previous configuration in `data/backup-recovery.json`. **Recovery backup** previews that saved configuration for restoring it. Failed writes roll back; if an interrupted connection prevents confirming recovery, synchronization pauses and the page explains how to recover. Wait for any active calendar refresh to finish before exporting or restoring.
+
+Backup files and recovery snapshots contain private calendar links and event contents. Keep them secure; they are not encrypted. Runtime recovery and snooze state stay inside the private `data/` folder and are excluded from distribution ZIPs.
 ICS links may contain secret access tokens. Keep `data/`, imported calendars and browser storage private; do not publish or share feed links.
 
 Treat the `data/` folder and calendar data as private. They are excluded from distribution ZIPs.

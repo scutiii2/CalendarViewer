@@ -1,8 +1,27 @@
 const PALETTE = ['#2563eb', '#dc2626', '#d97706', '#7c3aed', '#0891b2', '#db2777'];
 const LOCAL_SOURCES_KEY = 'ics-calendar-viewer.localSources.v1';
 const FEED_CACHE_KEY = 'ics-calendar-viewer.feedSnapshots.v1';
+const FEED_PREFERENCES_KEY = 'ics-calendar-viewer.feedPreferences.v1';
+let restoringBackup = false;
+const snoozedOccurrences = new Map();
 const sources = []; // {id, name, color, enabled, events: ICAL.Event[]}
 let nextId = 1;
+const HIDE_CANCELLED_KEY = 'ics-calendar-viewer.hideCancelled.v1';
+const VIEW_KEY = 'ics-calendar-viewer.view.v1';
+const ALLOWED_VIEWS = ['timeGridDay', 'timeGridWorkWeek', 'timeGridWeek', 'dayGridMonth', 'listWeek'];
+let initialView = 'timeGridWorkWeek';
+try {
+  const savedView = localStorage.getItem(VIEW_KEY);
+  if (ALLOWED_VIEWS.includes(savedView)) initialView = savedView;
+} catch { }
+let searchQuery = '';
+const searchInput = document.getElementById('event-search');
+const clearSearch = document.getElementById('clear-search');
+const searchStatus = document.getElementById('search-status');
+let hideCancelled = false;
+try { hideCancelled = localStorage.getItem(HIDE_CANCELLED_KEY) === 'true'; } catch { }
+let backgroundFeedHealth = new Map();
+let backgroundReachable = false;
 
 const ALERT_RULES_KEY = 'ics-calendar-viewer.alertRules.v1';
 const ALERT_FIRED_KEY = 'ics-calendar-viewer.alertsFired.v1';
@@ -13,11 +32,12 @@ const BELL_PATH = '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d=
 const BELL_OFF_PATH = BELL_PATH + '<path d="M3 3l18 18"/>';
 
 // A bell on every card that will alert, and a crossed bell on upcoming cards that will not.
-function alertIndicator(key, sourceKeys, finishMs) {
+function alertIndicator(key, sourceKeys, finishMs, cancelled = false) {
   const rules = alertRules;
   const event = rules.events[key];
   let state = 'on', label = 'Alert set';
-  if (event && event.mode === 'muted') { state = 'muted'; label = 'Alerts muted for this event'; }
+  if (cancelled) { state = 'muted'; label = 'Cancelled — alerts disabled'; }
+  else if (event && event.mode === 'muted') { state = 'muted'; label = 'Alerts muted for this event'; }
   else if (rules.global.muted) { state = 'muted'; label = 'All alerts muted'; }
   else if (!resolveOffsets(rules, key, sourceKeys).length) { state = 'none'; label = 'No alert set'; }
   if (state !== 'on' && finishMs <= Date.now()) return null;
@@ -62,7 +82,24 @@ function saveLocalSources() {
   }));
   try { localStorage.setItem(LOCAL_SOURCES_KEY, JSON.stringify(saved)); }
   catch (e) { setStatus('Could not save local calendars: ' + e.message); }
+  saveFeedPreferences();
   scheduleAlertSync();
+}
+
+function readFeedPreferences() {
+  try { const saved = JSON.parse(localStorage.getItem(FEED_PREFERENCES_KEY) || '[]'); return Array.isArray(saved) ? saved : []; }
+  catch { return []; }
+}
+
+function saveFeedPreferences() {
+  const prefs = new Map(readFeedPreferences().filter(s => s && typeof s.feedId === 'string').map(s => [s.feedId, s]));
+  sources.filter(s => s.feedId).forEach(s => prefs.set(s.feedId, { feedId: s.feedId, name: s.name, color: s.color, enabled: s.enabled }));
+  try { localStorage.setItem(FEED_PREFERENCES_KEY, JSON.stringify([...prefs.values()])); }
+  catch (e) { setStatus('Could not save calendar preferences: ' + e.message); }
+}
+
+function feedPreference(feedId) {
+  return readFeedPreferences().find(s => s && s.feedId === feedId) || {};
 }
 
 function restoreLocalSources() {
@@ -107,7 +144,7 @@ function restoreFeedCache() {
       sources.push({
         id: nextId++, feedId: s.feedId, alertKey: 'f:' + s.feedId, name: String(s.name || 'Calendar'),
         color: s.color || PALETTE[sources.length % PALETTE.length], enabled: true,
-        events: parseIcs(s.icsText)
+        events: parseIcs(s.icsText), fetchedAt: s.fetchedAt, ...feedPreference(s.feedId)
       });
     } catch { /* Ignore an obsolete or malformed cached snapshot. */ }
   });
@@ -185,7 +222,7 @@ function businessHours() {
 }
 
 const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
-  initialView: 'timeGridWorkWeek',
+  initialView,
   height: '100%',
   nowIndicator: true,
   nowIndicatorContent(arg) {
@@ -205,10 +242,12 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
   slotDuration: '00:30:00',
   scrollTime: currentScrollTime(),
   allDaySlot: false, // switched on in eventsSet only when the visible range has all-day events
-  headerToolbar: { left: 'today prev,next title', center: '', right: 'timeGridDay,timeGridWorkWeek,timeGridWeek,dayGridMonth' },
-  buttonText: { today: 'Today', timeGridDay: 'Day', timeGridWorkWeek: 'Work week', timeGridWeek: 'Week', dayGridMonth: 'Month' },
+  headerToolbar: { left: 'today prev,next title', center: '', right: 'timeGridDay,timeGridWorkWeek,timeGridWeek,dayGridMonth,listWeek' },
+  buttonText: { today: 'Today', timeGridDay: 'Day', timeGridWorkWeek: 'Work week', timeGridWeek: 'Week', dayGridMonth: 'Month', listWeek: 'Agenda' },
+  noEventsContent: () => searchQuery.trim() ? 'No events match your search in this date range.' : 'No events in this date range.',
   views: { timeGridWorkWeek: { type: 'timeGridWeek', weekends: false } },
   datesSet(arg) {
+    try { localStorage.setItem(VIEW_KEY, arg.view.type); } catch { }
     if (arg.view.type.startsWith('timeGrid')) focusCurrentTime();
     showUpNext(arg.view.type === 'timeGridDay');
   },
@@ -226,9 +265,10 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
     return { html: weekday + '<span class="header-date">' + arg.date.getDate() + '</span>' };
   },
   eventContent(arg) {
+    if (arg.view.type === 'listWeek') return agendaEventContent(arg);
     if (arg.view.type === 'dayGridMonth') {
       const chip = document.createElement('div');
-      chip.className = 'event-card month-chip' + (/^\s*cancell?ed\b/i.test(arg.event.title) ? ' canceled' : '');
+      chip.className = 'event-card month-chip' + (isCancelledTitle(arg.event.title) ? ' canceled' : '');
       chip.title = arg.event.title;
       chip.dataset.finish = eventFinishTime(arg.event);
       chip.classList.toggle('completed', Number(chip.dataset.finish) <= Date.now());
@@ -243,12 +283,13 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
       title.textContent = arg.event.title;
       chip.append(title);
       const p = arg.event.extendedProps;
-      const bell = alertIndicator(eventAlertKey(p.uid, arg.event.title), eventSourceKeys(p), Number(chip.dataset.finish));
+      appendConflictBadge(chip, p.conflicts);
+      const bell = alertIndicator(eventAlertKey(p.uid, arg.event.title), eventSourceKeys(p), Number(chip.dataset.finish), isCancelledTitle(arg.event.title));
       if (bell) chip.append(bell);
       return { domNodes: [chip] };
     }
     const card = document.createElement('div');
-    card.className = 'event-card' + (arg.event.allDay ? ' all-day-card' : '') + (/^\s*cancell?ed\b/i.test(arg.event.title) ? ' canceled' : '');
+    card.className = 'event-card' + (arg.event.allDay ? ' all-day-card' : '') + (isCancelledTitle(arg.event.title) ? ' canceled' : '');
     card.style.setProperty('--event-color', arg.event.backgroundColor || arg.event.borderColor || '#5b5fc7');
     card.title = arg.event.title; // titles are cut to one line, so the full text is on hover
     card.dataset.finish = eventFinishTime(arg.event);
@@ -258,7 +299,7 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
     title.textContent = arg.event.title;
     card.append(title);
     const p = arg.event.extendedProps;
-    const bell = alertIndicator(eventAlertKey(p.uid, arg.event.title), eventSourceKeys(p), Number(card.dataset.finish));
+    const bell = alertIndicator(eventAlertKey(p.uid, arg.event.title), eventSourceKeys(p), Number(card.dataset.finish), isCancelledTitle(arg.event.title));
     if (bell) {
       card.classList.add('has-alert');
       card.append(bell);
@@ -283,11 +324,16 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
       time.textContent = arg.timeText;
       card.append(time);
     }
+    appendConflictBadge(card, p.conflicts);
     return { domNodes: [card] };
   },
   events(info, ok, fail) {
     try {
-      ok(deduplicateEvents(sources.filter(s => s.enabled).flatMap(s => expand(s, info.start, info.end))));
+      const events = deduplicateEvents(sources.filter(s => s.enabled).flatMap(s => expand(s, info.start, info.end)));
+      const eligible = markConflicts(visibleEvents(events, hideCancelled));
+      const matches = eligible.filter(event => CalendarSearch.matches(event, searchQuery));
+      updateSearchStatus(matches.length, eligible.length);
+      ok(matches);
     } catch (e) { fail(e); }
   },
   eventClick({ event }) {
@@ -309,7 +355,10 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
     document.getElementById('event-date').textContent = event.start.toLocaleDateString(undefined, dateOptions) + (spansDays ? ' – ' + lastDay.toLocaleDateString(undefined, dateOptions) : '');
     const timeOptions = { hour: 'numeric', minute: '2-digit' };
     document.getElementById('event-time').textContent = event.allDay ? 'All day' : event.start.toLocaleTimeString(undefined, timeOptions) + (event.end ? ' – ' + event.end.toLocaleTimeString(undefined, timeOptions) + durationText(event.end - event.start) : '');
-    const canceled = /^\s*cancell?ed\b/i.test(event.title);
+    const canceled = isCancelledTitle(event.title);
+    const conflicts = document.getElementById('event-conflicts');
+    conflicts.hidden = !p.conflicts?.length;
+    conflicts.textContent = p.conflicts?.length ? 'Overlaps with: ' + p.conflicts.join(', ') : '';
     const status = eventStatus(event, canceled);
     const statusEl = document.getElementById('event-status');
     statusEl.textContent = status.text;
@@ -346,6 +395,72 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
 });
 calendar.render();
 placeSyncStrip();
+
+function updateSearchStatus(count, total) {
+  if (clearSearch) clearSearch.disabled = !searchQuery;
+  if (!searchStatus) return;
+  searchStatus.textContent = searchQuery.trim()
+    ? (count ? count + ' of ' + total + ' events match in this date range.' : 'No matching events in this date range. Clear search or change dates.')
+    : 'Search titles and locations in the displayed date range.';
+}
+
+if (searchInput) {
+  searchInput.addEventListener('input', () => {
+    searchQuery = searchInput.value;
+    calendar.refetchEvents();
+  });
+  searchInput.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && searchInput.value) {
+      event.preventDefault();
+      resetSearch();
+    }
+  });
+}
+function resetSearch() {
+  searchQuery = '';
+  if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+  calendar.refetchEvents();
+}
+if (clearSearch) clearSearch.addEventListener('click', resetSearch);
+
+function agendaEventContent(arg) {
+  const event = arg.event, p = event.extendedProps;
+  const card = document.createElement('div');
+  card.className = 'event-card agenda-card' + (isCancelledTitle(event.title) ? ' canceled' : '');
+  card.title = event.title;
+  card.dataset.finish = eventFinishTime(event);
+  card.classList.toggle('completed', Number(card.dataset.finish) <= Date.now());
+  const heading = document.createElement('div');
+  heading.className = 'agenda-heading';
+  const title = document.createElement('span');
+  title.className = 'event-title';
+  title.textContent = event.title;
+  heading.append(title);
+  appendConflictBadge(heading, p.conflicts);
+  const bell = alertIndicator(eventAlertKey(p.uid, event.title), eventSourceKeys(p), Number(card.dataset.finish), isCancelledTitle(event.title));
+  if (bell) heading.append(bell);
+  card.append(heading);
+  const details = [p.location, (p.sourceDetails || []).map(source => source.name).join(', ')].filter(Boolean);
+  if (details.length) {
+    const detail = document.createElement('div');
+    detail.className = 'agenda-detail';
+    detail.textContent = details.join(' · ');
+    card.append(detail);
+  }
+  return { domNodes: [card] };
+}
+
+function appendConflictBadge(card, conflicts) {
+  if (!conflicts?.length) return;
+  const badge = document.createElement('span');
+  badge.className = 'conflict-badge';
+  badge.textContent = 'Overlap';
+  badge.title = 'Overlaps with: ' + conflicts.join(', ');
+  badge.setAttribute('aria-label', badge.title);
+  card.classList.add('has-conflict');
+  card.append(badge);
+  card.title += '\n' + badge.title;
+}
 
 function durationText(ms) {
   const minutes = Math.round(ms / 60000);
@@ -492,20 +607,39 @@ function scheduleAlertSync() {
 }
 
 async function syncAlertState() {
+  if (restoringBackup) return;
   const body = JSON.stringify({
     rules: alertRules,
     sources: sources.filter(s => s.alertKey).map(s => ({ alertKey: s.alertKey, name: s.name, enabled: s.enabled, icsText: s.feedId ? undefined : s.icsText }))
   });
   try {
     const status = await (await api('/api/alerts/state', { method: 'POST', body })).json();
-    serverToasts = !!status.serverToasts;
-  } catch { /* Server unreachable: the page falls back to browser notifications. */ }
+    applyServerStatus(status);
+  } catch { backgroundReachable = false; serverToasts = false; updateSourceHealth(); }
   updateNotifyPanel();
 }
 
 async function refreshServerStatus() {
-  try { serverToasts = !!(await (await api('/api/alerts/status')).json()).serverToasts; } catch { serverToasts = false; }
+  try { applyServerStatus(await (await api('/api/alerts/status')).json()); }
+  catch { serverToasts = false; backgroundReachable = false; updateSourceHealth(); }
   updateNotifyPanel();
+}
+
+function applyServerStatus(status) {
+  serverToasts = !!status.serverToasts;
+  backgroundReachable = true;
+  backgroundFeedHealth = new Map((status.feeds || []).map(f => [f.id, f]));
+  (status.snoozes?.pending || []).forEach(s => snoozedOccurrences.set(s.key + '|' + s.start, s.dueAt));
+  for (const reminder of status.snoozes?.deliveries || []) {
+    const id = 'snooze|' + reminder.id;
+    if (!(id in firedAlerts) && !restoringBackup) {
+      firedAlerts[id] = reminder.occ.start;
+      snoozedOccurrences.set(reminder.occ.key + '|' + reminder.occ.start, reminder.deliveredAt);
+      deliverAlert(reminder.occ, Date.now());
+      saveFiredAlerts();
+    }
+  }
+  updateSourceHealth();
 }
 
 function saveFiredAlerts() {
@@ -582,34 +716,34 @@ function openCalendarAlerts(src) {
 let alertEventCtx = null;
 function openEventAlerts(event) {
   const p = event.extendedProps;
-  alertEventCtx = { key: eventAlertKey(p.uid, event.title), sourceKeys: eventSourceKeys(p) };
+  alertEventCtx = { key: eventAlertKey(p.uid, event.title), sourceKeys: eventSourceKeys(p), cancelled: isCancelledTitle(event.title) };
   renderEventAlerts();
 }
 
 function renderEventAlerts() {
-  const { key, sourceKeys } = alertEventCtx;
+  const { key, sourceKeys, cancelled } = alertEventCtx;
   const override = alertRules.events[key];
   const mode = override ? override.mode : 'default';
-  document.querySelectorAll('input[name=alert-mode]').forEach(r => { r.checked = r.value === mode; });
+  document.querySelectorAll('input[name=alert-mode]').forEach(r => { r.checked = r.value === mode; r.disabled = cancelled; });
   const defaults = calendarDefaultOffsets(alertRules, sourceKeys);
   const effective = alertRules.global.muted ? [] : mode === 'muted' ? [] : mode === 'custom' ? override.offsets : defaults;
-  document.getElementById('alert-summary').textContent = alertRules.global.muted ? 'All alerts muted' :
+  document.getElementById('alert-summary').textContent = cancelled ? 'Cancelled — alerts disabled' : alertRules.global.muted ? 'All alerts muted' :
     mode === 'muted' ? 'Muted' : effective.length ? effective.map(formatOffset).join(', ') : 'No alerts';
   const custom = document.getElementById('alert-custom');
   custom.replaceChildren();
-  if (mode === 'custom') {
+  if (mode === 'custom' && !cancelled) {
     custom.append(buildOffsetEditor(override.offsets, list => {
       alertRules.events[key] = { mode: 'custom', offsets: list };
       alertRulesChanged(list.length > 0);
     }));
   }
-  document.getElementById('alert-note').textContent = (alertRules.global.muted ? 'All alerts are muted in the sidebar. ' : '') +
+  document.getElementById('alert-note').textContent = cancelled ? 'Cancelled events never send alerts. Saved settings apply if the event becomes active again.' : (alertRules.global.muted ? 'All alerts are muted in the sidebar. ' : '') +
     (mode === 'default' ? '' : 'Applies to every occurrence of this event.');
 }
 
 document.querySelectorAll('input[name=alert-mode]').forEach(radio => {
   radio.onchange = () => {
-    if (!radio.checked || !alertEventCtx) return;
+    if (!radio.checked || !alertEventCtx || alertEventCtx.cancelled) return;
     const { key, sourceKeys } = alertEventCtx;
     if (radio.value === 'default') delete alertRules.events[key];
     else if (radio.value === 'muted') alertRules.events[key] = { mode: 'muted', offsets: [] };
@@ -621,6 +755,13 @@ document.querySelectorAll('input[name=alert-mode]').forEach(radio => {
 
 // -- Sidebar panel: global mute and system notification permission --
 const muteAll = document.getElementById('mute-all');
+const hideCancelledToggle = document.getElementById('hide-cancelled');
+hideCancelledToggle.checked = hideCancelled;
+hideCancelledToggle.onchange = () => {
+  hideCancelled = hideCancelledToggle.checked;
+  try { localStorage.setItem(HIDE_CANCELLED_KEY, String(hideCancelled)); } catch { }
+  calendar.refetchEvents();
+};
 muteAll.checked = alertRules.global.muted;
 muteAll.onchange = () => { alertRules.global.muted = muteAll.checked; alertRulesChanged(false); if (alertEventCtx) renderEventAlerts(); };
 
@@ -690,6 +831,7 @@ loadStartup();
 
 // -- Scheduler --
 function runAlertCheck(silent) {
+  if (restoringBackup) return;
   const now = Date.now();
   const horizon = maxConfiguredOffset(alertRules) * 60000;
   if (!horizon) return;
@@ -698,7 +840,8 @@ function runAlertCheck(silent) {
   catch { return; }
   due.forEach(a => {
     firedAlerts[a.id] = a.occ.start;
-    if (!silent && !a.superseded) deliverAlert(a.occ, now);
+    const deferredUntil = snoozedOccurrences.get(a.occ.key + '|' + a.occ.start);
+    if (!silent && !a.superseded && !(deferredUntil && now <= deferredUntil + 30000)) deliverAlert(a.occ, now);
   });
   Object.keys(firedAlerts).forEach(id => { if (firedAlerts[id] < now - 86400000) delete firedAlerts[id]; });
   if (due.length) saveFiredAlerts();
@@ -737,6 +880,27 @@ function showToast(occ, body) {
     join.textContent = 'Join';
     actions.append(join);
   }
+  if (Date.now() + 5 * 60000 < occ.start) {
+    const snooze = document.createElement('button');
+    snooze.type = 'button';
+    snooze.textContent = 'Snooze 5 min';
+    snooze.onclick = async () => {
+      snooze.disabled = true;
+      try {
+        const deferred = await (await api('/api/alerts/snooze', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Calendar-Action': '1' },
+          body: JSON.stringify({ key: occ.key, start: occ.start })
+        })).json();
+        snoozedOccurrences.set(occ.key + '|' + occ.start, deferred.dueAt);
+        toast.remove();
+        setStatus('Reminder snoozed for 5 minutes.');
+      } catch (e) {
+        snooze.disabled = false;
+        text.textContent = 'Could not snooze. The background server must be running. ' + e.message;
+      }
+    };
+    actions.append(snooze);
+  }
   const dismiss = document.createElement('button');
   dismiss.type = 'button';
   dismiss.textContent = 'Dismiss';
@@ -769,8 +933,10 @@ function renderSources() {
     el.className = 'src' + (s.enabled ? '' : ' off');
     el.setAttribute('role', 'listitem');
     el.style.setProperty('--source-color', s.color);
-    el.innerHTML = '<input type="checkbox" class="src-check" aria-label="Show or hide calendar" title="Show or hide"><span class="src-name"></span><button type="button" class="icon-button bell-button" aria-label="Default alerts" title="Default alerts">' + BELL_ICON + '</button><button type="button" class="icon-button more-button" aria-label="Calendar options" aria-haspopup="menu" aria-expanded="false" title="Options">' + MORE_ICON + '</button><input type="color" class="src-color" tabindex="-1" aria-hidden="true">';
-    const [chk, name, bell, more, col] = el.children;
+    el.innerHTML = '<input type="checkbox" class="src-check" aria-label="Show or hide calendar" title="Show or hide"><span class="src-labels"><span class="src-name"></span><small class="src-health"></small></span><button type="button" class="icon-button bell-button" aria-label="Default alerts" title="Default alerts">' + BELL_ICON + '</button><button type="button" class="icon-button more-button" aria-label="Calendar options" aria-haspopup="menu" aria-expanded="false" title="Options">' + MORE_ICON + '</button><input type="color" class="src-color" tabindex="-1" aria-hidden="true">';
+    const [chk, labels, bell, more, col] = el.children;
+    const name = labels.querySelector('.src-name');
+    el.dataset.sourceId = s.id;
     const calRule = alertRules.calendars[s.alertKey];
     bell.classList.toggle('active', !!(calRule && calRule.enabled && calRule.offsets.length));
     bell.onclick = () => openCalendarAlerts(s);
@@ -792,6 +958,37 @@ function renderSources() {
     };
     more.onclick = () => openSourceMenu(s, el, more, col);
     box.append(el);
+  });
+  updateSourceHealth();
+}
+
+function updateSourceHealth() {
+  const now = Date.now();
+  const minutes = Number(document.getElementById('auto-refresh').value);
+  const staleAfter = Math.max(10, minutes * 2) * 60000;
+  const describe = health => {
+    const at = health.fetchedAt;
+    const time = at == null ? '' : new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const labels = { current: 'Updated', refreshing: 'Refreshing…', error: 'Failed', stale: 'Stale', pending: 'Not fetched', inactive: 'Not needed', offline: 'Server offline' };
+    return labels[health.state] + (time ? ' · ' + time : '');
+  };
+  document.querySelectorAll('.src[data-source-id]').forEach(row => {
+    const source = sources.find(s => s.id === Number(row.dataset.sourceId));
+    const label = row.querySelector('.src-health');
+    if (!source || !label) return;
+    label.replaceChildren();
+    if (!source.feedId) { label.textContent = 'Local file'; return; }
+    const page = syncHealth(source, now, staleAfter);
+    const background = backgroundReachable ? backgroundFeedHealth.get(source.feedId) || { state: 'pending' } :
+      { ...backgroundFeedHealth.get(source.feedId), state: 'offline' };
+    for (const [name, health] of [['Page', page], ['Alerts', background]]) {
+      const line = document.createElement('span');
+      line.className = 'source-sync';
+      line.dataset.state = health.state;
+      line.textContent = name + ': ' + describe(health);
+      line.title = name + ': ' + describe(health) + (health.fetchedAt == null ? '' : '\nLast successful refresh: ' + new Date(health.fetchedAt).toLocaleString());
+      label.append(line);
+    }
   });
 }
 
@@ -943,6 +1140,7 @@ async function api(path, opts) {
 }
 
 let pendingRefreshes = 0;
+let refreshQueued = false;
 const skeleton = document.getElementById('calendar-loading');
 for (let i = 0; i < 5; i++) {
   const column = document.createElement('div');
@@ -956,6 +1154,8 @@ for (let i = 0; i < 5; i++) {
 }
 
 async function loadFeeds() {
+  if (restoringBackup) return;
+  if (pendingRefreshes) { refreshQueued = true; return; }
   pendingRefreshes++;
   const main = document.querySelector('main');
   main.classList.add('is-refreshing');
@@ -971,6 +1171,7 @@ async function loadFeeds() {
       skeleton.hidden = true;
       main.classList.remove('is-refreshing');
       document.getElementById('cal').setAttribute('aria-busy', 'false');
+      if (refreshQueued) { refreshQueued = false; await loadFeeds(); }
     }
   }
 }
@@ -978,20 +1179,45 @@ async function loadFeeds() {
 async function fetchFeeds() {
   let feeds;
   try { feeds = await (await api('/api/feeds')).json(); }
-  catch { setSyncState('error'); return setStatus('Server not running. Start it with calendar.bat. Link feeds are off.'); }
+  catch {
+    sources.filter(s => s.feedId).forEach(s => { s.failed = true; s.fetching = false; });
+    updateSourceHealth();
+    setSyncState('error');
+    return setStatus('Server not running. Start it with calendar.bat. Link feeds are off.');
+  }
   setStatus('Refreshing…');
+  feeds.forEach(f => {
+    let source = sources.find(s => s.feedId === f.id);
+    if (!source) {
+      source = { id: nextId++, feedId: f.id, alertKey: 'f:' + f.id, name: f.name, color: f.color, enabled: true, events: [], ...feedPreference(f.id) };
+      sources.push(source);
+    }
+    source.fetching = true;
+  });
+  renderSources();
   const results = await Promise.allSettled(feeds.map(async f => {
-    const icsText = await (await api('/api/ics/' + f.id)).text();
-    return { events: parseIcs(icsText), icsText };
+    const source = sources.find(s => s.feedId === f.id);
+    try {
+      const icsText = await (await api('/api/ics/' + f.id)).text();
+      const events = parseIcs(icsText);
+      if (!sources.includes(source)) return;
+      source.events = events;
+      source.fetchedAt = Date.now();
+      source.failed = false;
+      cacheFeedSnapshot(f, icsText);
+    } catch (error) {
+      if (sources.includes(source)) source.failed = true;
+      throw error;
+    } finally {
+      if (sources.includes(source)) source.fetching = false;
+      updateSourceHealth();
+      calendar.refetchEvents();
+    }
   }));
   const errors = [];
   feeds.forEach((f, i) => {
     const r = results[i];
-    const existing = sources.find(s => s.feedId === f.id);
-    if (r.status === 'rejected') return errors.push(f.name + ': ' + r.reason.message);
-    if (existing) existing.events = r.value.events;
-    else sources.push({ id: nextId++, feedId: f.id, alertKey: 'f:' + f.id, name: f.name, color: f.color, enabled: true, events: r.value.events });
-    cacheFeedSnapshot(f, r.value.icsText);
+    if (r.status === 'rejected') errors.push(f.name + ': ' + r.reason.message);
   });
   for (let i = sources.length - 1; i >= 0; i--) {
     if (sources[i].feedId && !feeds.some(f => f.id === sources[i].feedId)) sources.splice(i, 1);
@@ -1025,6 +1251,7 @@ try {
 autoRefresh.onchange = () => {
   try { localStorage.setItem(AUTO_REFRESH_KEY, autoRefresh.value); } catch { }
   configureAutoRefresh();
+  updateSourceHealth();
 };
 configureAutoRefresh();
 const THEME_KEY = 'calendar-theme';
@@ -1064,6 +1291,7 @@ renderSources();
 calendar.refetchEvents();
 // Learn whether the server shows Windows toasts before the first check, so no alert is announced twice.
 refreshServerStatus().then(() => { runAlertCheck(false); scheduleAlertSync(); });
+setInterval(refreshServerStatus, 30000);
 loadFeeds();
 
 // ---- Add card ----
@@ -1116,4 +1344,46 @@ sidebar.addEventListener('drop', e => {
   dragDepth = 0;
   dropOverlay.hidden = true;
   acceptFiles([...e.dataTransfer.files]);
+});
+
+// The backup service owns feed URLs; the page supplies its imported files and preferences.
+function getBackupClientState() {
+  if (pendingRefreshes) throw new Error('Wait for the current calendar refresh to finish, then try again.');
+  return {
+    localSources: sources.filter(s => !s.feedId && s.icsText).map(s => ({ name: s.name, color: s.color, enabled: s.enabled, icsText: s.icsText, alertKey: s.alertKey })),
+    feedPreferences: sources.filter(s => s.feedId).map(s => ({ feedId: s.feedId, name: s.name, color: s.color, enabled: s.enabled })),
+    alertRules,
+    preferences: {
+      theme: localStorage.getItem(THEME_KEY) || 'system', workingHours,
+      autoRefreshMinutes: Number(autoRefresh.value), hideCancelled, view: calendar.view.type
+    }
+  };
+}
+
+function applyBackupClientState(backup, { validateOnly = false } = {}) {
+  const next = CalendarBackup.validateBackup(backup), p = next.preferences;
+  CalendarStorage.write(localStorage, {
+    [LOCAL_SOURCES_KEY]: JSON.stringify(next.localSources),
+    [FEED_PREFERENCES_KEY]: JSON.stringify(next.feedPreferences),
+    [FEED_CACHE_KEY]: '[]',
+    [ALERT_RULES_KEY]: JSON.stringify(next.alertRules),
+    [THEME_KEY]: p.theme,
+    [HOURS_KEY]: JSON.stringify(p.workingHours),
+    [AUTO_REFRESH_KEY]: String(p.autoRefreshMinutes),
+    [HIDE_CANCELLED_KEY]: String(p.hideCancelled),
+    [VIEW_KEY]: p.view
+  }, validateOnly);
+}
+
+CalendarBackupUI.init({
+  getClientState: getBackupClientState,
+  applyClientState: applyBackupClientState,
+  api: async (path, opts) => (await api(path, opts)).json(),
+  onRestoreStart: () => { restoringBackup = true; clearTimeout(alertSyncTimer); },
+  onRestoreFailure: ({ uncertain = false } = {}) => {
+    restoringBackup = uncertain;
+    if (uncertain) setStatus('Restore outcome is uncertain. Reconnect and use the recovery backup before resuming.');
+    else scheduleAlertSync();
+  },
+  onRestored: () => window.location.reload()
 });
