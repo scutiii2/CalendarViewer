@@ -1,10 +1,10 @@
   :root {
     --bg: #f5f5f5; --panel: #ffffff; --surface-muted: #faf9f8; --text: #242424; --muted: #616161; --border: #e1dfdd;
-    --accent: #5b5fc7; --accent-hover: #4f52b5; --focus: #5b5fc7; --danger: #c4314b; --time: #605e5c;
+    --accent: #5b5fc7; --focus: #5b5fc7; --danger: #c4314b;
   }
-  :root[data-theme=dark] { --bg: #1f1f1f; --panel: #292929; --surface-muted: #333333; --text: #f5f5f5; --muted: #c8c8c8; --border: #454545; --accent: #a6a7dc; --accent-hover: #c0c1ec; --focus: #c0c1ec; --danger: #ff99a4; --time: #d1d1d1; }
+  :root[data-theme=dark] { --bg: #1f1f1f; --panel: #292929; --surface-muted: #333333; --text: #f5f5f5; --muted: #c8c8c8; --border: #454545; --accent: #a6a7dc; --focus: #c0c1ec; --danger: #ff99a4; }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme=light]) { --bg: #1f1f1f; --panel: #292929; --surface-muted: #333333; --text: #f5f5f5; --muted: #c8c8c8; --border: #454545; --accent: #a6a7dc; --accent-hover: #c0c1ec; --focus: #c0c1ec; --danger: #ff99a4; --time: #d1d1d1; }
+    :root:not([data-theme=light]) { --bg: #1f1f1f; --panel: #292929; --surface-muted: #333333; --text: #f5f5f5; --muted: #c8c8c8; --border: #454545; --accent: #a6a7dc; --focus: #c0c1ec; --danger: #ff99a4; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; min-height: 100vh; font: 14px/1.4 "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
@@ -13,14 +13,14 @@
   .app { min-height: 100vh; display: grid; grid-template-columns: 260px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); gap: 0; }
   input[type=text], #add input { min-height: 32px; padding: 5px 8px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 4px; }
   button { min-height: 32px; padding: 5px 12px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 4px; font-weight: 500; }
-  button:hover { background: var(--surface-muted); } .primary { background: var(--accent); border-color: var(--accent); color: #fff; } .primary:hover { background: var(--accent-hover); }
+  button:hover { background: var(--surface-muted); }
   .icon-button { min-height: 26px; width: 26px; padding: 0; border-color: transparent; color: var(--muted); font-size: 19px; line-height: 1; }
   .icon-button:hover { color: var(--danger); background: transparent; }
   main { min-width: 0; min-height: 0; padding: 16px; }
   #cal { height: calc(100vh - 90px); min-height: 600px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 14px; overflow: hidden; }
   dialog { max-width: 520px; width: calc(100vw - 32px); padding: 0; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); box-shadow: 0 12px 32px rgba(0,0,0,.24); }
   dialog::backdrop { background: rgba(0,0,0,.35); } .dialog-body { padding: 20px; }
-  dialog h2 { margin: 0 32px 8px 0; font-size: 20px; line-height: 1.3; } dialog .meta { color: var(--muted); margin: 0 0 14px; white-space: pre-line; }
+  dialog h2 { margin: 0 32px 8px 0; font-size: 20px; line-height: 1.3; }
   dialog pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: inherit; max-height: 40vh; overflow: auto; }
   .dialog-close { position: absolute; top: 10px; right: 10px; } #join { margin: 0 0 14px; text-decoration: none; display: inline-flex; align-items: center; }
   .fc { height: 100%; --fc-border-color: var(--border); --fc-page-bg-color: var(--panel); --fc-neutral-bg-color: var(--surface-muted); --fc-list-event-hover-bg-color: var(--surface-muted); --fc-today-bg-color: color-mix(in srgb, var(--accent) 5%, transparent); --fc-now-indicator-color: #d13438; }
@@ -31,14 +31,11 @@
   .fc .fc-col-header-cell-cushion { color: var(--muted); text-decoration: none; font-weight: 500; padding: 8px 4px; } .fc .fc-daygrid-day-number { color: var(--text); text-decoration: none; }
   .header-date { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-left: 3px; border-radius: 50%; color: var(--text); }
   .fc .fc-day-today .header-date { background: var(--accent); color: #fff; }
-  .fc .fc-timegrid-slot-label-cushion { color: var(--time); font-size: 11px; } .fc .fc-timegrid-slot { height: 2.5em; }
   .fc .fc-timegrid-event, .fc .fc-daygrid-event { border: 0; border-radius: 4px; box-shadow: none; overflow: hidden; }
   .fc .fc-daygrid-event { min-height: 22px; } .event-card { height: 100%; min-width: 0; padding: 3px 5px; color: var(--text); }
   .event-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 12px; } .event-time { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
-  .event-card.canceled { --event-color: #6b6b6b !important; opacity: .5; filter: grayscale(1); } .event-card.canceled .event-title { text-decoration: line-through; font-weight: 500; }
-  .all-day-card { border-left-width: 4px; padding: 2px 5px; } .fc .fc-timegrid-now-indicator-line { border-color: #d13438; border-width: 2px; }
-  @media (max-width: 800px) { .app { display: block; } main { padding: 10px; } #cal { height: calc(100vh - 310px); min-height: 480px; padding: 8px; } #note { margin-left: 0; width: 100%; } .fc .fc-toolbar { flex-wrap: wrap; gap: 8px; } .fc .fc-toolbar-chunk { display: flex; } }
-  @media (max-width: 520px) { .fc .fc-toolbar-title { font-size: 17px; } }
+  .event-card.canceled { opacity: .5; filter: grayscale(1); } .event-card.canceled .event-title { text-decoration: line-through; font-weight: 500; }
+  .all-day-card { border-left-width: 4px; } .fc .fc-timegrid-now-indicator-line { border-color: #d13438; border-width: 2px; }
   /* Fluent calendar shell */
   :root { --brand: #5b5fc7; --brand-hover: #4f52b5; }
   :root { color-scheme: light; --scroll-thumb: #b8b8b8; --scroll-hover: #858585; }
@@ -73,7 +70,6 @@
   @keyframes calendar-shimmer { to { transform: translateX(100%); } }
   @keyframes calendar-progress { to { background-position: -200% 0; } }
   @media (prefers-reduced-motion: reduce) { .skeleton-event::after, main.is-refreshing::after { animation: none; } }
-  @media (max-width: 800px) { #calendar-loading { inset: 190px 28px 30px 65px; gap: 8px; } }
   .app { height: 100dvh; min-height: 0; grid-template-columns: 248px minmax(0, 1fr); }
   button, #add input { min-height: 38px; border-radius: 6px; }
   .primary { background: var(--brand); border-color: var(--brand); color: #fff; }
@@ -89,14 +85,11 @@
   .fc .fc-day-today .header-date { background: var(--brand); }
   .fc .fc-timegrid-slot { height: 4em; } /* a 30-minute slot must fit one event card (about 53px), or short events look longer than they are */
   .event-card { width: 100%; padding: 5px 8px; }
-  .event-title { font-size: 12px; }
   .fc .fc-event, .fc .fc-event * { cursor: pointer; }
   .fc .fc-timegrid-event { overflow: visible; min-height: max-content; }
   .fc .fc-timegrid-event .fc-event-main { height: auto; min-height: 100%; }
   .event-card { min-height: 100%; height: auto; }
   .event-title { white-space: normal; overflow-wrap: anywhere; }
-  .event-card { --event-color: #16833b !important; }
-  .event-card.completed { --event-color: #808080 !important; }
   /* Every event is the same card as the Up next list: a status-coloured frame around a darker fill of the same colour. */
   .fc .fc-event, .up-item { --card-accent: #16833b; }
   .fc .fc-event:has(.completed), .fc .fc-event:has(.canceled) { --card-accent: #808080; }
@@ -128,7 +121,6 @@
   .dialog-body > :not(.description-section) { flex-shrink: 0; }
   dialog h2 { font-size: 22px; font-weight: 600; line-height: 1.4; margin-right: 30px; }
   #dm { margin-bottom: 22px; }
-  .detail-row { margin-bottom: 14px; }
   #join { width: fit-content; min-width: 140px; margin: 8px 0 0; padding: 10px 24px; }
   .description-section { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--border) transparent; margin-top: 22px; padding-top: 18px; padding-right: 10px; }
   dialog pre { white-space: pre-wrap; line-height: 1.7; color: var(--muted); }
@@ -136,7 +128,6 @@
   .meeting-footer summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text); padding: 4px 0; }
   .meeting-footer pre { margin-top: 12px; font-size: 12px; }
   summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-  @media (max-width: 520px) { .dialog-body { padding: 22px 18px; } dialog h2 { font-size: 19px; } }
   .detail-row { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 12px; margin-bottom: 18px; }
   .detail-icon { width: 20px; height: 20px; color: var(--muted); }
   #event-date { font-weight: 500; }
@@ -150,8 +141,6 @@
   a:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
   #file { display: block; position: absolute; width: 1px; height: 1px; opacity: 0; }
   
-  @media (max-width: 800px) { .app { height: auto; min-height: 100dvh; } main { padding: 10px; } #cal { height: 680px; min-height: 480px; padding: 10px; } .fc .fc-toolbar-title { font-size: 18px; } }
-  @media (max-width: 520px) { #cal { padding: 6px; } .fc .fc-toolbar-chunk:last-child { width: 100%; } .fc .fc-toolbar-chunk:last-child .fc-button-group { width: 100%; } .fc .fc-button { padding: 6px 9px; } .dialog-body { padding: 24px 18px; } dialog h2 { font-size: 20px; } }
   @media (max-width: 1200px) { .fc .fc-toolbar { flex-wrap: wrap; gap: 12px; } .fc .fc-toolbar-title { font-size: 18px; } }
   .app { grid-template-rows: minmax(0, 1fr); }
   /* Alerts */
@@ -169,8 +158,7 @@
   .alert-section { margin: 4px 0 0; padding-top: 16px; border-top: 1px solid var(--border); }
   .alert-section h3 { font-size: 14px; margin: 0 0 10px; }
   .alert-modes { display: grid; gap: 6px; }
-  .alert-modes label { display: flex; gap: 8px; align-items: baseline; }
-  .alert-modes .hint, .alert-hint { color: var(--muted); font-size: 12px; }
+  .alert-hint { color: var(--muted); font-size: 12px; }
   .startup-state { display: flex; align-items: center; gap: 8px; min-height: 18px; color: var(--muted); transition: opacity .4s; }
   .startup-state.fading { opacity: 0; }
   .state-icon { flex: none; width: 14px; height: 14px; display: inline-grid; place-items: center; font-weight: 700; line-height: 1; }
@@ -235,8 +223,6 @@
   @keyframes sync-pulse { 50% { opacity: .35; } }
   @keyframes sync-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .sync-strip[data-state=busy] .sync-dot, .sync-strip[data-state=busy] .sync-refresh svg { animation: none; } }
-  @media (max-width: 800px) { #cal { --cal-pad: 10px; } }
-  @media (max-width: 520px) { .sync-sep { display: none; } #cal { --cal-pad: 6px; } .fc .fc-toolbar-chunk:last-child { width: 100%; } .fc .fc-toolbar-chunk:last-child .fc-button-group { width: 100%; } .fc .fc-toolbar-chunk:last-child .fc-button-group > .fc-button { flex: 1; padding: 0 6px; } }
   /* Sidebar */
   aside { position: relative; display: flex; flex-direction: column; min-height: 0; padding: 20px 14px 14px; background: var(--bg); border-right: 1px solid var(--border); overflow: hidden; }
   .sb-head { display: flex; align-items: center; justify-content: space-between; margin: 0 4px 12px; }
@@ -294,7 +280,6 @@
   .sb-status.on .sb-dot { background: var(--accent); }
   #notify-enable { min-height: 30px; font-size: 12px; }
   .drop-overlay { position: absolute; inset: 8px; z-index: 5; display: grid; place-items: center; padding: 16px; border: 2px dashed var(--accent); border-radius: 12px; background: color-mix(in srgb, var(--panel) 88%, var(--accent)); color: var(--accent); font-weight: 600; text-align: center; pointer-events: none; }
-  @media (max-width: 800px) { aside { max-height: none; overflow: visible; padding: 12px; border-right: 0; border-bottom: 1px solid var(--border); } #sources { flex: none; max-height: 220px; } }
   @media (prefers-reduced-motion: reduce) { .sb-icon svg, .sb-switch input, .sb-switch input::after { transition: none; } }
   /* Calendar views */
   .fc { --fc-border-color: color-mix(in srgb, var(--border) 65%, transparent); --fc-non-business-color: color-mix(in srgb, var(--text) 5%, transparent); --fc-today-bg-color: color-mix(in srgb, var(--brand) 5%, transparent); }
@@ -339,7 +324,6 @@
   .sb-hours { display: grid; gap: 6px; color: var(--text); font-size: 13px; }
   .sb-hours-range { display: flex; align-items: center; gap: 6px; color: var(--muted); }
   .sb-hours input[type=time] { flex: 1; min-width: 0; min-height: 28px; padding: 0 4px; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; font: inherit; font-size: 12px; }
-  @media (max-width: 800px) { .up-next { display: none; } #cal.show-rail .fc-view-harness { margin-right: 0; } }
   /* Event details dialog */
   .dlg-bar { height: 4px; background: #16833b; }
   .dlg-bar[data-state=done] { background: #808080; }

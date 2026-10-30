@@ -4,6 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { writeJsonAtomic } = require('./json-store');
 
 const PORT = Number(process.env.PORT) || 3000;
 const ROOT = path.join(__dirname, '..', '..');
@@ -53,8 +54,7 @@ const readFeeds = () => {
   try { return JSON.parse(fs.readFileSync(FEEDS_FILE, 'utf8')); } catch { return []; }
 };
 const writeFeeds = feeds => {
-  fs.writeFileSync(FEEDS_FILE + '.tmp', JSON.stringify(feeds, null, 2));
-  fs.renameSync(FEEDS_FILE + '.tmp', FEEDS_FILE);
+  writeJsonAtomic(FEEDS_FILE, feeds, { space: 2 });
 };
 
 const send = (res, code, body, type = 'text/plain; charset=utf-8') => {

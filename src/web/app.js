@@ -76,11 +76,18 @@ function updateEventStatus() {
   });
 }
 
-function saveLocalSources() {
-  const saved = sources.filter(s => !s.feedId && s.icsText).map(s => ({
+function localSourceSnapshots() {
+  return sources.filter(s => !s.feedId && s.icsText).map(s => ({
     name: s.name, color: s.color, enabled: s.enabled, icsText: s.icsText, alertKey: s.alertKey
   }));
-  try { localStorage.setItem(LOCAL_SOURCES_KEY, JSON.stringify(saved)); }
+}
+
+function feedPreferenceSnapshots() {
+  return sources.filter(s => s.feedId).map(s => ({ feedId: s.feedId, name: s.name, color: s.color, enabled: s.enabled }));
+}
+
+function saveLocalSources() {
+  try { localStorage.setItem(LOCAL_SOURCES_KEY, JSON.stringify(localSourceSnapshots())); }
   catch (e) { setStatus('Could not save local calendars: ' + e.message); }
   saveFeedPreferences();
   scheduleAlertSync();
@@ -93,7 +100,7 @@ function readFeedPreferences() {
 
 function saveFeedPreferences() {
   const prefs = new Map(readFeedPreferences().filter(s => s && typeof s.feedId === 'string').map(s => [s.feedId, s]));
-  sources.filter(s => s.feedId).forEach(s => prefs.set(s.feedId, { feedId: s.feedId, name: s.name, color: s.color, enabled: s.enabled }));
+  feedPreferenceSnapshots().forEach(s => prefs.set(s.feedId, s));
   try { localStorage.setItem(FEED_PREFERENCES_KEY, JSON.stringify([...prefs.values()])); }
   catch (e) { setStatus('Could not save calendar preferences: ' + e.message); }
 }
@@ -267,11 +274,7 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
   eventContent(arg) {
     if (arg.view.type === 'listWeek') return agendaEventContent(arg);
     if (arg.view.type === 'dayGridMonth') {
-      const chip = document.createElement('div');
-      chip.className = 'event-card month-chip' + (isCancelledTitle(arg.event.title) ? ' canceled' : '');
-      chip.title = arg.event.title;
-      chip.dataset.finish = eventFinishTime(arg.event);
-      chip.classList.toggle('completed', Number(chip.dataset.finish) <= Date.now());
+      const chip = createEventCard(arg.event, 'month-chip');
       if (!arg.event.allDay && arg.timeText) {
         const time = document.createElement('span');
         time.className = 'mc-time';
@@ -284,22 +287,17 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
       chip.append(title);
       const p = arg.event.extendedProps;
       appendConflictBadge(chip, p.conflicts);
-      const bell = alertIndicator(eventAlertKey(p.uid, arg.event.title), eventSourceKeys(p), Number(chip.dataset.finish), isCancelledTitle(arg.event.title));
+      const bell = createEventBell(arg.event);
       if (bell) chip.append(bell);
       return { domNodes: [chip] };
     }
-    const card = document.createElement('div');
-    card.className = 'event-card' + (arg.event.allDay ? ' all-day-card' : '') + (isCancelledTitle(arg.event.title) ? ' canceled' : '');
-    card.style.setProperty('--event-color', arg.event.backgroundColor || arg.event.borderColor || '#5b5fc7');
-    card.title = arg.event.title; // titles are cut to one line, so the full text is on hover
-    card.dataset.finish = eventFinishTime(arg.event);
-    card.classList.toggle('completed', Number(card.dataset.finish) <= Date.now());
+    const card = createEventCard(arg.event, arg.event.allDay ? 'all-day-card' : '');
     const title = document.createElement('div');
     title.className = 'event-title';
     title.textContent = arg.event.title;
     card.append(title);
     const p = arg.event.extendedProps;
-    const bell = alertIndicator(eventAlertKey(p.uid, arg.event.title), eventSourceKeys(p), Number(card.dataset.finish), isCancelledTitle(arg.event.title));
+    const bell = createEventBell(arg.event);
     if (bell) {
       card.classList.add('has-alert');
       card.append(bell);
@@ -423,13 +421,23 @@ function resetSearch() {
 }
 if (clearSearch) clearSearch.addEventListener('click', resetSearch);
 
-function agendaEventContent(arg) {
-  const event = arg.event, p = event.extendedProps;
+function createEventCard(event, className) {
   const card = document.createElement('div');
-  card.className = 'event-card agenda-card' + (isCancelledTitle(event.title) ? ' canceled' : '');
+  card.className = 'event-card' + (className ? ' ' + className : '') + (isCancelledTitle(event.title) ? ' canceled' : '');
   card.title = event.title;
   card.dataset.finish = eventFinishTime(event);
   card.classList.toggle('completed', Number(card.dataset.finish) <= Date.now());
+  return card;
+}
+
+function createEventBell(event) {
+  const p = event.extendedProps;
+  return alertIndicator(eventAlertKey(p.uid, event.title), eventSourceKeys(p), eventFinishTime(event), isCancelledTitle(event.title));
+}
+
+function agendaEventContent(arg) {
+  const event = arg.event, p = event.extendedProps;
+  const card = createEventCard(event, 'agenda-card');
   const heading = document.createElement('div');
   heading.className = 'agenda-heading';
   const title = document.createElement('span');
@@ -437,7 +445,7 @@ function agendaEventContent(arg) {
   title.textContent = event.title;
   heading.append(title);
   appendConflictBadge(heading, p.conflicts);
-  const bell = alertIndicator(eventAlertKey(p.uid, event.title), eventSourceKeys(p), Number(card.dataset.finish), isCancelledTitle(event.title));
+  const bell = createEventBell(event);
   if (bell) heading.append(bell);
   card.append(heading);
   const details = [p.location, (p.sourceDetails || []).map(source => source.name).join(', ')].filter(Boolean);
@@ -533,7 +541,7 @@ function renderUpNext() {
   const clock = ms => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   items.forEach((o, i) => {
     const item = document.createElement('div');
-    item.className = 'up-item' + (i === 0 ? ' first' : '');
+    item.className = 'up-item';
     const title = document.createElement('div');
     title.className = 'up-title';
     title.textContent = o.title;
@@ -1350,8 +1358,8 @@ sidebar.addEventListener('drop', e => {
 function getBackupClientState() {
   if (pendingRefreshes) throw new Error('Wait for the current calendar refresh to finish, then try again.');
   return {
-    localSources: sources.filter(s => !s.feedId && s.icsText).map(s => ({ name: s.name, color: s.color, enabled: s.enabled, icsText: s.icsText, alertKey: s.alertKey })),
-    feedPreferences: sources.filter(s => s.feedId).map(s => ({ feedId: s.feedId, name: s.name, color: s.color, enabled: s.enabled })),
+    localSources: localSourceSnapshots(),
+    feedPreferences: feedPreferenceSnapshots(),
     alertRules,
     preferences: {
       theme: localStorage.getItem(THEME_KEY) || 'system', workingHours,

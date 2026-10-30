@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const logic = require('../shared/alert-logic');
+const { writeJsonAtomic } = require('./json-store');
 const idFor = occ => occ.key + '|' + occ.start;
 
 function createReminderStore({ file, now = Date.now }) {
@@ -18,8 +19,7 @@ function createReminderStore({ file, now = Date.now }) {
       tickets: next.tickets.filter(s => s.start > t),
       deliveries: next.deliveries.filter(s => s.occ.start > t && s.deliveredAt >= t - 120000)
     };
-    fs.writeFileSync(file + '.tmp', JSON.stringify(next));
-    fs.renameSync(file + '.tmp', file);
+    writeJsonAtomic(file, next);
     state = next;
   }
   function schedule(occ) {
@@ -57,7 +57,6 @@ function createReminderStore({ file, now = Date.now }) {
   }
   return {
     schedule, issueTicket, consumeTicket, takeDue,
-    has: occ => state.pending.some(s => idFor(s) === idFor(occ) && s.start > now()),
     horizon: () => Math.max(0, ...state.pending.map(s => s.start - now())),
     status: () => ({
       pending: state.pending.filter(s => s.start > now()).map(s => ({ ...s })),

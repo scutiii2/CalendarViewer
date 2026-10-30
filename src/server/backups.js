@@ -1,5 +1,6 @@
 const fs = require('fs');
 const Backup = require('../shared/backup.js');
+const { writeJsonAtomic } = require('./json-store');
 
 function createBackupService({ readFeeds, writeFeeds, alerts, recoveryFile }) {
   function exportBackup(client) {
@@ -14,9 +15,7 @@ function createBackupService({ readFeeds, writeFeeds, alerts, recoveryFile }) {
     const oldAlerts = alerts.getState();
     // Keep a recoverable full snapshot even when applying a later store fails.
     if (preserveRecovery !== true) {
-      const staging = recoveryFile + '.tmp';
-      fs.writeFileSync(staging, JSON.stringify(old), {mode:0o600});
-      fs.renameSync(staging, recoveryFile);
+      writeJsonAtomic(recoveryFile, old, { mode: 0o600 });
     }
     try {
       writeFeeds(next.feeds);

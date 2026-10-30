@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { createReminderStore } = require('./reminders');
+const { writeJsonAtomic } = require('./json-store');
 
 global.ICAL = require('../../vendor/ical.min.js');
 const logic = require('../shared/alert-logic.js');
@@ -26,8 +27,8 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
   const readJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; } };
   const writeJson = (file, value, strict = false) => {
     try {
-      fs.writeFileSync(strict ? file + '.tmp' : file, JSON.stringify(value));
-      if (strict) fs.renameSync(file + '.tmp', file);
+      if (strict) writeJsonAtomic(file, value);
+      else fs.writeFileSync(file, JSON.stringify(value));
     } catch (e) { if (strict) throw e; log('Could not save ' + path.basename(file) + ': ' + e.message); }
   };
 
@@ -180,7 +181,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
   }
 
   return {
-    setState, status, start, tick, check, snooze,
+    setState, status, start, tick, snooze,
     snoozeTicket: token => snooze(reminders.consumeTicket(token)),
     getState: () => JSON.parse(JSON.stringify(state)),
     invalidateFeeds: () => { feedGeneration++; feedCache.clear(); feedHealth.clear(); }

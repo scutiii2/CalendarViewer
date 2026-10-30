@@ -168,8 +168,8 @@ function Show-Toast {
     $join = ''
     if ($link) { $join = '<action content="Join" arguments="' + (& $esc $link) + '" activationType="protocol"/>' }
     if ($snoozeLink) { $join += '<action content="Snooze 5 min" arguments="' + (& $esc $snoozeLink) + '" activationType="protocol"/>' }
-    # scenario="reminder" keeps the toast on screen until it is dismissed.
-    $xml = '<toast scenario="reminder"><visual><binding template="ToastGeneric"><text>' + (& $esc $text) + '</text><text>' + (& $esc $message) + '</text></binding></visual><actions>' + $join + '<action content="Dismiss" arguments="dismiss" activationType="system"/></actions></toast>'
+    # Normal short-duration banners disappear automatically; actions remain in Notification Center.
+    $xml = '<toast scenario="default" duration="short"><visual><binding template="ToastGeneric"><text>' + (& $esc $text) + '</text><text>' + (& $esc $message) + '</text></binding></visual><actions>' + $join + '<action content="Dismiss" arguments="dismiss" activationType="system"/></actions></toast>'
 
     $doc = New-Object Windows.Data.Xml.Dom.XmlDocument
     $doc.LoadXml($xml)
