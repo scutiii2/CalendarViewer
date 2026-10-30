@@ -27,6 +27,10 @@ function Get-CalendarPort {
     $port
 }
 
+function Get-CalendarServers {
+    @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object { $_.CommandLine -match $serverPattern })
+}
+
 function Start-Calendar {
     $port = Get-CalendarPort
     $nodePath = (Get-Command node -ErrorAction Stop).Source
@@ -65,7 +69,7 @@ function Start-Calendar {
 # run.bat: start the server if it is stopped, restart it if it is older than the files on disk, then open the calendar.
 function Invoke-Calendar {
     $port = Get-CalendarPort
-    $servers = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object { $_.CommandLine -match $serverPattern })
+    $servers = Get-CalendarServers
     if (-not $servers.Count) {
         Write-Host 'Calendar server is not running. Starting it...'
         Start-Calendar
@@ -88,7 +92,7 @@ function Invoke-Calendar {
 }
 
 function Stop-Calendar {
-    $servers = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object { $_.CommandLine -match $serverPattern })
+    $servers = Get-CalendarServers
     if (-not $servers.Count) {
         Write-Host 'Calendar server is already stopped.'
         return
