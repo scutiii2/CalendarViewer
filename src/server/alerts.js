@@ -1,10 +1,9 @@
 // Background alert scheduler: sends Windows toasts for upcoming events even when the web page is closed.
 // The page pushes its alert rules and imported calendars here; feed links are fetched by this process.
-const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { createReminderStore } = require('./reminders');
-const { writeJsonAtomic } = require('./json-store');
+const { writeJsonAtomic, readJson } = require('./json-store');
 
 global.ICAL = require('../../vendor/ical.min.js');
 const logic = require('../shared/alert-logic.js');
@@ -24,13 +23,6 @@ function windowsToast(occ, body, onResult) {
 }
 
 function createAlertService({ readFeeds, fetchText, notify = windowsToast, stateFile, firedFile, remindersFile, snoozeBaseUrl, now = Date.now, log = console.log }) {
-  const readJson = (file, fallback) => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; } };
-  const writeJson = (file, value, strict = false) => {
-    try {
-      if (strict) writeJsonAtomic(file, value);
-      else fs.writeFileSync(file, JSON.stringify(value));
-    } catch (e) { if (strict) throw e; log('Could not save ' + path.basename(file) + ': ' + e.message); }
-  };
 
   let state = readJson(stateFile, {});
   state = { rules: logic.sanitizeRules(state.rules), sources: Array.isArray(state.sources) ? state.sources : [] };
@@ -79,7 +71,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
         try { cached = { text: s.icsText, events: logic.parseIcs(s.icsText) }; } catch { return; }
         localCache.set(s.alertKey, cached);
       }
-      out.push({ id: out.length + 1, alertKey: s.alertKey, name: s.name, color: '#5b5fc7', enabled: s.enabled !== false, events: cached.events });
+      out.push({ id: out.length + 1, alertKey: s.alertKey, name: s.name, color: logic.DEFAULT_SOURCE_COLOR, enabled: s.enabled !== false, events: cached.events });
     });
     return out;
   }
@@ -107,7 +99,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
     catch (e) { log('Alert check failed: ' + e.message); return 0; }
     const deliver = occ => {
       let snoozeUrl;
-      if (snoozeBaseUrl && t + 5 * 60000 < occ.start) {
+      if (snoozeBaseUrl && t + logic.SNOOZE_MS < occ.start) {
         try { snoozeUrl = snoozeBaseUrl + '/alerts/snooze/' + reminders.issueTicket(occ); }
         catch (e) { log('Could not save snooze action: ' + e.message); }
       }
@@ -120,7 +112,10 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
     });
     deferred.forEach(a => deliver(a.occ));
     Object.keys(fired).forEach(id => { if (fired[id] < t - 86400000) delete fired[id]; });
-    if (due.length) writeJson(firedFile, fired);
+    if (due.length) {
+      try { writeJsonAtomic(firedFile, fired); }
+      catch (e) { log('Could not save ' + path.basename(firedFile) + ': ' + e.message); }
+    }
     return due.length + deferred.length;
   }
 
@@ -144,7 +139,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
     };
     const changed = JSON.stringify(next) !== JSON.stringify(state);
     if (!changed) return;
-    writeJson(stateFile, next, true);
+    writeJsonAtomic(stateFile, next);
     state = next;
     for (const key of localCache.keys()) if (!state.sources.some(s => s.alertKey === key)) localCache.delete(key);
     // Edits must not announce alerts that were already past; the next tick also fetches any new feeds.

@@ -8,11 +8,10 @@ const sources = []; // {id, name, color, enabled, events: ICAL.Event[]}
 let nextId = 1;
 const HIDE_CANCELLED_KEY = 'ics-calendar-viewer.hideCancelled.v1';
 const VIEW_KEY = 'ics-calendar-viewer.view.v1';
-const ALLOWED_VIEWS = ['timeGridDay', 'timeGridWorkWeek', 'timeGridWeek', 'dayGridMonth', 'listWeek'];
 let initialView = 'timeGridWorkWeek';
 try {
   const savedView = localStorage.getItem(VIEW_KEY);
-  if (ALLOWED_VIEWS.includes(savedView)) initialView = savedView;
+  if (VIEWS.includes(savedView)) initialView = savedView;
 } catch { }
 let searchQuery = '';
 const searchInput = document.getElementById('event-search');
@@ -33,8 +32,7 @@ const BELL_OFF_PATH = BELL_PATH + '<path d="M3 3l18 18"/>';
 
 // A bell on every card that will alert, and a crossed bell on upcoming cards that will not.
 function alertIndicator(key, sourceKeys, finishMs, cancelled = false) {
-  const rules = alertRules;
-  const event = rules.events[key];
+  const rules = alertRules, event = rules.events[key];
   let state = 'on', label = 'Alert set';
   if (cancelled) { state = 'muted'; label = 'Cancelled — alerts disabled'; }
   else if (event && event.mode === 'muted') { state = 'muted'; label = 'Alerts muted for this event'; }
@@ -49,7 +47,6 @@ function alertIndicator(key, sourceKeys, finishMs, cancelled = false) {
   icon.innerHTML = '<title>' + label + '</title>' + (state === 'on' ? BELL_PATH : BELL_OFF_PATH);
   return icon;
 }
-const eventSourceKeys = p => (p.sourceDetails || []).map(s => s.key).filter(Boolean);
 
 function isReservedGreen(color) {
   const hex = /^#([0-9a-f]{6})$/i.exec(color || '');
@@ -304,16 +301,8 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
     }
     const memberships = arg.event.extendedProps.sourceDetails || [];
     if (memberships.length) {
-      const dots = document.createElement('div');
-      dots.className = 'event-sources';
+      const dots = createSourceDots(memberships);
       dots.setAttribute('aria-label', memberships.map(s => s.name).join(', '));
-      memberships.forEach(source => {
-        const dot = document.createElement('span');
-        dot.className = 'source-dot';
-        dot.style.setProperty('--detail-color', source.color);
-        dot.title = source.name;
-        dots.append(dot);
-      });
       card.append(dots);
     }
     if (!arg.event.allDay && arg.timeText) {
@@ -346,7 +335,7 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
       badge.textContent = source.name;
       badges.append(badge);
     });
-    document.getElementById('dlg').style.setProperty('--detail-color', event.backgroundColor || '#5b5fc7');
+    document.getElementById('dlg').style.setProperty('--detail-color', event.backgroundColor || DEFAULT_SOURCE_COLOR);
     const dateOptions = { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' };
     const lastDay = event.allDay && event.end ? new Date(event.end.getTime() - 1) : event.end;
     const spansDays = lastDay && lastDay.toDateString() !== event.start.toDateString();
@@ -430,6 +419,19 @@ function createEventCard(event, className) {
   return card;
 }
 
+function createSourceDots(details) {
+  const dots = document.createElement('div');
+  dots.className = 'event-sources';
+  details.forEach(source => {
+    const dot = document.createElement('span');
+    dot.className = 'source-dot';
+    dot.style.setProperty('--detail-color', source.color);
+    dot.title = source.name;
+    dots.append(dot);
+  });
+  return dots;
+}
+
 function createEventBell(event) {
   const p = event.extendedProps;
   return alertIndicator(eventAlertKey(p.uid, event.title), eventSourceKeys(p), eventFinishTime(event), isCancelledTitle(event.title));
@@ -482,7 +484,7 @@ function eventStatus(event, canceled) {
   if (event.allDay) return { state: 'upcoming', text: '' };
   const now = Date.now();
   const start = event.start.getTime();
-  if (Number(eventFinishTime(event)) <= now) return { state: 'ended', text: 'Ended' };
+  if (eventFinishTime(event) <= now) return { state: 'ended', text: 'Ended' };
   if (start <= now) return { state: 'live', text: 'In progress' };
   return { state: 'upcoming', text: 'Starts in ' + formatRemaining(start - now) };
 }
@@ -546,16 +548,7 @@ function renderUpNext() {
     title.className = 'up-title';
     title.textContent = o.title;
     item.append(title);
-    const dots = document.createElement('div');
-    dots.className = 'event-sources';
-    (o.sourceDetails || []).forEach(source => {
-      const dot = document.createElement('span');
-      dot.className = 'source-dot';
-      dot.style.setProperty('--detail-color', source.color);
-      dot.title = source.name;
-      dots.append(dot);
-    });
-    item.append(dots);
+    item.append(createSourceDots(o.sourceDetails || []));
     const bell = alertIndicator(o.key, o.sourceKeys, Infinity);
     if (bell) item.append(bell);
     const day = new Date(o.start).toDateString() === new Date(now).toDateString() ? '' : new Date(o.start).toLocaleDateString(undefined, { weekday: 'short' }) + ' ';
@@ -576,7 +569,6 @@ function renderUpNext() {
     upNext.append(item);
   });
 }
-setInterval(renderUpNext, 30000);
 
 // ---- Working hours ----
 const hoursStart = document.getElementById('hours-start');
@@ -596,8 +588,6 @@ function applyWorkingHours() {
 }
 hoursStart.onchange = applyWorkingHours;
 hoursEnd.onchange = applyWorkingHours;
-// Update finished-event styling even when the page stays open without navigation.
-setInterval(updateEventStatus, 30000);
 
 // ---- Alerts: persistence, editors, scheduler, delivery ----
 function saveAlertRules() {
@@ -888,7 +878,7 @@ function showToast(occ, body) {
     join.textContent = 'Join';
     actions.append(join);
   }
-  if (Date.now() + 5 * 60000 < occ.start) {
+  if (Date.now() + SNOOZE_MS < occ.start) {
     const snooze = document.createElement('button');
     snooze.type = 'button';
     snooze.textContent = 'Snooze 5 min';
@@ -918,7 +908,8 @@ function showToast(occ, body) {
   document.getElementById('toasts').append(toast);
 }
 
-setInterval(() => runAlertCheck(false), 30000);
+// One 30-second tick: finished-event styling, the Up next rail and the alert check.
+setInterval(() => { updateEventStatus(); renderUpNext(); runAlertCheck(false); }, 30000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) runAlertCheck(false); });
 
 const BELL_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true">' + BELL_PATH + '</svg>';

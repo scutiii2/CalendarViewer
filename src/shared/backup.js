@@ -1,7 +1,7 @@
 // The same strict allowlist runs before preview in the browser and before any server writes.
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('../../vendor/ical.min.js'), require('./alert-logic.js'));
-  else root.CalendarBackup = factory(root.ICAL, { sanitizeRules, MAX_OFFSET_MIN });
+  else root.CalendarBackup = factory(root.ICAL, { sanitizeRules, MAX_OFFSET_MIN, VIEWS });
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (ICAL, logic) {
   'use strict';
   const MAX_BYTES = 20 * 1024 * 1024;
@@ -53,7 +53,7 @@
     if (!['system','light','dark'].includes(p.theme)) fail('theme');
     if (![h.start,h.end].every(v => typeof v === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(v)) || h.start === h.end) fail('working hours');
     if (![0,1,5,10,15,30,60].includes(p.autoRefreshMinutes)) fail('refresh interval');
-    if (!['timeGridDay','timeGridWorkWeek','timeGridWeek','dayGridMonth','listWeek'].includes(p.view)) fail('view');
+    if (!logic.VIEWS.includes(p.view)) fail('view');
     return {format:raw.format,version:1,createdAt:raw.createdAt,feeds,localSources,feedPreferences,alertRules:rules(raw.alertRules),preferences:{theme:p.theme,workingHours:{start:h.start,end:h.end},autoRefreshMinutes:p.autoRefreshMinutes,hideCancelled:bool(p.hideCancelled,'hideCancelled'),view:p.view}};
   }
   function parseBackup(text) { if (typeof text !== 'string' || new TextEncoder().encode(text).length > MAX_BYTES) fail('file exceeds 20 MB'); let raw; try { raw = JSON.parse(text); } catch { fail('file is not JSON'); } return validateBackup(raw); }

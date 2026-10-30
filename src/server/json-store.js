@@ -6,4 +6,8 @@ function writeJsonAtomic(file, value, { space, mode } = {}) {
   fs.renameSync(staging, file);
 }
 
-module.exports = { writeJsonAtomic };
+function readJson(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return fallback; }
+}
+
+module.exports = { writeJsonAtomic, readJson };

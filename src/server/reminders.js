@@ -3,27 +3,26 @@
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 const logic = require('../shared/alert-logic');
-const { writeJsonAtomic } = require('./json-store');
+const { writeJsonAtomic, readJson } = require('./json-store');
 const idFor = occ => occ.key + '|' + occ.start;
 
 function createReminderStore({ file, now = Date.now }) {
   let state = { pending: [], tickets: [], deliveries: [] };
-  try {
-    const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-    if (['pending', 'tickets', 'deliveries'].every(key => Array.isArray(saved[key]))) state = saved;
-  } catch { }
+  const saved = readJson(file, {});
+  if (['pending', 'tickets', 'deliveries'].every(key => Array.isArray(saved[key]))) state = saved;
+  const liveDeliveries = (list, t) => list.filter(s => s.occ.start > t && s.deliveredAt >= t - logic.DELIVERY_WINDOW_MS);
   function commit(next) {
     const t = now();
     next = {
       pending: next.pending.filter(s => s.start > t),
       tickets: next.tickets.filter(s => s.start > t),
-      deliveries: next.deliveries.filter(s => s.occ.start > t && s.deliveredAt >= t - 120000)
+      deliveries: liveDeliveries(next.deliveries, t)
     };
     writeJsonAtomic(file, next);
     state = next;
   }
   function schedule(occ) {
-    const dueAt = now() + 5 * 60000;
+    const dueAt = now() + logic.SNOOZE_MS;
     if (!occ || typeof occ.key !== 'string' || !Number.isFinite(occ.start) || dueAt >= occ.start) {
       throw new Error('A five-minute snooze must end before the event starts.');
     }
@@ -60,7 +59,7 @@ function createReminderStore({ file, now = Date.now }) {
     horizon: () => Math.max(0, ...state.pending.map(s => s.start - now())),
     status: () => ({
       pending: state.pending.filter(s => s.start > now()).map(s => ({ ...s })),
-      deliveries: state.deliveries.filter(s => s.occ.start > now() && s.deliveredAt >= now() - 120000).map(s => ({ ...s }))
+      deliveries: liveDeliveries(state.deliveries, now()).map(s => ({ ...s }))
     })
   };
 }

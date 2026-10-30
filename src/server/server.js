@@ -4,7 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { writeJsonAtomic } = require('./json-store');
+const { writeJsonAtomic, readJson } = require('./json-store');
 
 const PORT = Number(process.env.PORT) || 3000;
 const ROOT = path.join(__dirname, '..', '..');
@@ -50,9 +50,7 @@ const { createAlertService } = require('./alerts');
 const { createStartupService } = require('./startup');
 const { createBackupService } = require('./backups');
 
-const readFeeds = () => {
-  try { return JSON.parse(fs.readFileSync(FEEDS_FILE, 'utf8')); } catch { return []; }
-};
+const readFeeds = () => readJson(FEEDS_FILE, []);
 const writeFeeds = feeds => {
   writeJsonAtomic(FEEDS_FILE, feeds, { space: 2 });
 };
@@ -70,13 +68,15 @@ const readBody = (req, limit = 1e5) => new Promise((resolve, reject) => {
   req.on('error', reject);
 });
 
+async function fetchFeedText(feed) {
+  const r = await fetch(feed.url, { redirect: 'follow' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.text();
+}
+
 const alerts = createAlertService({
   readFeeds,
-  fetchText: async feed => {
-    const r = await fetch(feed.url, { redirect: 'follow' });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return r.text();
-  },
+  fetchText: fetchFeedText,
   stateFile: path.join(DATA_DIR, 'alerts-state.json'),
   firedFile: path.join(DATA_DIR, 'alerts-fired.json'),
   snoozeBaseUrl: `http://localhost:${PORT}`
@@ -86,11 +86,11 @@ const backups = createBackupService({ readFeeds, writeFeeds, alerts, recoveryFil
 const startup = createStartupService();
 
 // Actions that change the machine must come from this page: block other websites and DNS rebinding.
+const HOSTS = [`localhost:${PORT}`, `127.0.0.1:${PORT}`];
+const ORIGINS = HOSTS.map(h => 'http://' + h);
 const isLocalAction = req => {
-  const origins = [`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`];
-  const hosts = [`localhost:${PORT}`, `127.0.0.1:${PORT}`];
-  return req.headers['x-calendar-action'] === '1' && hosts.includes(req.headers.host) &&
-    (!req.headers.origin || origins.includes(req.headers.origin));
+  return req.headers['x-calendar-action'] === '1' && HOSTS.includes(req.headers.host) &&
+    (!req.headers.origin || ORIGINS.includes(req.headers.origin));
 };
 
 http.createServer(async (req, res) => {
@@ -119,7 +119,7 @@ http.createServer(async (req, res) => {
     }
     const snoozeAction = url.pathname.match(/^\/alerts\/snooze\/([a-f0-9]{48})$/);
     if (snoozeAction && req.method === 'GET') {
-      if (![`localhost:${PORT}`, `127.0.0.1:${PORT}`].includes(req.headers.host)) return send(res, 403, 'Forbidden');
+      if (!HOSTS.includes(req.headers.host)) return send(res, 403, 'Forbidden');
       try {
         await alerts.snoozeTicket(snoozeAction[1]);
         res.setHeader('Referrer-Policy', 'no-referrer');
@@ -166,9 +166,8 @@ http.createServer(async (req, res) => {
         return send(res, 204, '');
       }
       if (m[1] === 'ics' && req.method === 'GET') {
-        const r = await fetch(feed.url, { redirect: 'follow' });
-        if (!r.ok) return send(res, 502, `Upstream returned HTTP ${r.status}`);
-        return send(res, 200, await r.text(), 'text/calendar; charset=utf-8');
+        try { return send(res, 200, await fetchFeedText(feed), 'text/calendar; charset=utf-8'); }
+        catch (e) { return send(res, 502, /^HTTP \d+$/.test(e.message) ? `Upstream returned ${e.message}` : e.message); }
       }
     }
 

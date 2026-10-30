@@ -2,6 +2,11 @@
 // Needs a global ICAL (ical.js). Pure functions; no DOM access.
 const MAX_OCCURRENCES = 2000;
 const MAX_OFFSET_MIN = 60 * 24 * 30;
+const SNOOZE_MS = 5 * 60000;
+const DELIVERY_WINDOW_MS = 120000;
+const DEFAULT_SOURCE_COLOR = '#5b5fc7';
+const VIEWS = ['timeGridDay', 'timeGridWorkWeek', 'timeGridWeek', 'dayGridMonth', 'listWeek'];
+const eventSourceKeys = p => (p.sourceDetails || []).map(s => s.key).filter(Boolean);
 const eventAlertKey = (uid, title) => uid || 'fb:' + title;
 const isCancelledTitle = title => /^\s*cancell?ed\b/i.test(title);
 
@@ -231,7 +236,7 @@ function collectOccurrences(sources, now, horizonMs) {
       return {
         key: eventAlertKey(p.uid, e.title), title: e.title, start: e.start.getTime(), allDay: e.allDay,
         location: p.location, join: meeting && meeting.href,
-        sourceKeys: (p.sourceDetails || []).map(s => s.key).filter(Boolean),
+        sourceKeys: eventSourceKeys(p),
         sourceDetails: p.sourceDetails || []
       };
     });
@@ -247,7 +252,7 @@ function pickUpNext(occurrences, now, limit = 3) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    MAX_OFFSET_MIN, eventAlertKey, normalizeOffsets, formatOffset, sanitizeRules, calendarDefaultOffsets, resolveOffsets,
+    MAX_OFFSET_MIN, SNOOZE_MS, DELIVERY_WINDOW_MS, DEFAULT_SOURCE_COLOR, VIEWS, eventSourceKeys, eventAlertKey, normalizeOffsets, formatOffset, sanitizeRules, calendarDefaultOffsets, resolveOffsets,
     maxConfiguredOffset, findDueAlerts, formatRemaining, alertBody, parseIcs, expand, deduplicateEvents,
     readableUrl, isTeamsMeeting, findMeetingUrl, collectOccurrences, pickUpNext,
     isCancelledTitle, visibleEvents, markConflicts, syncHealth
