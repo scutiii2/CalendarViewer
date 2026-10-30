@@ -13,19 +13,7 @@ const FEEDS_FILE = path.join(DATA_DIR, 'feeds.json');
 // Read once at start, so run.bat can tell when a running server is older than the files on disk.
 const VERSION = (() => { try { return fs.readFileSync(path.join(ROOT, 'VERSION'), 'utf8').trim(); } catch { return 'unknown'; } })();
 
-// Earlier versions kept runtime files in the application root. Move them once; never overwrite or lose data.
-function migrateData() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (process.env.CALENDAR_DATA_DIR) return;
-  for (const name of ['feeds.json', 'alerts-state.json', 'alerts-fired.json']) {
-    const from = path.join(ROOT, name), to = path.join(DATA_DIR, name);
-    if (!fs.existsSync(from)) continue;
-    if (fs.existsSync(to)) { console.log(`Both ${name} and data/${name} exist; leaving the old one in place.`); continue; }
-    fs.copyFileSync(from, to);
-    if (fs.statSync(to).size === fs.statSync(from).size) fs.unlinkSync(from);
-  }
-}
-migrateData();
+fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const STATIC_ROOTS = [
   ['/shared/', path.join(ROOT, 'src', 'shared')],

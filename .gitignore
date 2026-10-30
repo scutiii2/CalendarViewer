@@ -5,9 +5,6 @@
 # App data and runtime state
 *.ics
 data/
-feeds.json
-alerts-state.json
-alerts-fired.json
 
 # Build output
 dist/

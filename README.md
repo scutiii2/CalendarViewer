@@ -121,7 +121,7 @@ The interface follows your system's light/dark preference.
 
 ## Privacy
 
-Remote feed links are saved locally in `data/feeds.json`, which the server creates as needed. Files from an older version (`feeds.json` and `alerts-*.json` in the application folder) are moved into `data/` the first time the new server starts.
+Remote feed links are saved locally in `data/feeds.json`, which the server creates as needed.
 Imported files, cached feed snapshots, and the auto-refresh preference are stored in your browser's local storage.
 Use the same browser profile and address to retain that browser data; clearing site data removes it.
 The server listens only on `127.0.0.1`. This application does not edit the source calendars.
