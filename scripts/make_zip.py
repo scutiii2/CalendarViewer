@@ -11,7 +11,7 @@ EXCLUDED_DIRS = {
     '.git', '.hg', '.svn', '.claude', '.codex', '.agents', '.idea', '.vscode',
     '__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache',
     '.cache', 'node_modules', '.venv', 'venv', 'dist', 'build',
-    'coverage', 'htmlcov', 'secrets', '.secrets', 'data',
+    'coverage', 'htmlcov', 'secrets', '.secrets', 'data', 'tools',
 }
 EXCLUDED_SUFFIXES = {'.pyc', '.pyo', '.log', '.tmp', '.temp', '.zip', '.ics', '.pem', '.key'}
 
@@ -62,7 +62,7 @@ def main():
     args = parser.parse_args()
     count = create_zip(root, args.output)
     print(f'Created {args.output.resolve()} ({count} files)')
-    print('Excluded Git files, dependencies, build output, caches, local settings, the data folder, and ICS files.')
+    print('Excluded Git files, dependencies, build output, caches, local settings, the data and tools folders, and ICS files.')
 
 
 if __name__ == '__main__':

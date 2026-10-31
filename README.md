@@ -197,9 +197,9 @@ Choose option 5 in `calendar.bat`, double-click `tools\make_zip.bat`, or run:
 python scripts/make_zip.py
 ```
 
-The archive is created at `dist/CalendarViewer-<VERSION>.zip` (the number comes from `VERSION`) and includes everything outside the exclusions below: the app, launchers, `scripts/`, `tools/`, the Docker files, the tests, and this README.
+The archive is created at `dist/CalendarViewer-<VERSION>.zip` (the number comes from `VERSION`) and includes everything outside the exclusions below: the app, launchers, `scripts/`, the Docker files, the tests, and this README.
 Generated `.zip` files are excluded wherever they appear in the project, including the output archive itself.
-Git files, dependencies, build output, caches, local settings, secret files, the `data/` folder, and `.ics` files are excluded.
+Git files, dependencies, build output, caches, local settings, secret files, the `data/` and `tools/` folders (deploy and release tooling), and `.ics` files are excluded. The `live` branch carries only the files listed under Publish above, so it has neither `tools/` nor any ZIP.
 The previous archive is replaced after packaging succeeds.
 Recipients should extract the ZIP before running the launchers and add their own calendars. Node.js is not bundled.
 
