@@ -14,8 +14,8 @@ test('a completed feed updates immediately even while another feed is still load
   let time = 1000000;
   const context = vm.createContext({
     sources: [], nextId: 1, feedPreference: () => ({}), Date: class extends Date { static now() { return time; } },
-    api: async url => url === '/api/feeds' ? { json: async () => [{ id: 'fast', name: 'Fast' }, { id: 'slow', name: 'Slow' }] } :
-      { text: async () => url.endsWith('/slow') ? slow.promise : 'fast ICS' },
+    apiJson: async () => [{ id: 'fast', name: 'Fast' }, { id: 'slow', name: 'Slow' }],
+    api: async url => ({ text: async () => url.endsWith('/slow') ? slow.promise : 'fast ICS' }),
     parseIcs: text => [text],
     updateSourceHealth() {},
     renderSources() {}, calendar: { refetchEvents() {} }, runAlertCheck() {}, scheduleAlertSync() {},

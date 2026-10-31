@@ -8,6 +8,12 @@ const store = {
     catch (e) { if (failure) setStatus(failure + ': ' + e.message); }
   }
 };
+function create(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
 const PALETTE = ['#2563eb', '#dc2626', '#d97706', '#7c3aed', '#0891b2', '#db2777'];
 const LOCAL_SOURCES_KEY = 'ics-calendar-viewer.localSources.v1';
 const FEED_CACHE_KEY = 'ics-calendar-viewer.feedSnapshots.v1';
@@ -153,12 +159,10 @@ function focusCurrentTime() {
 }
 
 function externalLink(href, text, className) {
-  const link = document.createElement('a');
-  if (className) link.className = className;
+  const link = create('a', className, text);
   link.href = href;
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
-  link.textContent = text;
   return link;
 }
 
@@ -220,10 +224,7 @@ const calendar = new FullCalendar.Calendar(calBox, {
   nowIndicator: true,
   nowIndicatorContent(arg) {
     if (!arg.isAxis) return undefined;
-    const chip = document.createElement('span');
-    chip.className = 'now-chip';
-    chip.textContent = arg.date.toLocaleTimeString([], CLOCK).replace(/\s?[AP]M$/i, '');
-    return { domNodes: [chip] };
+    return { domNodes: [create('span', 'now-chip', arg.date.toLocaleTimeString([], CLOCK).replace(/\s?[AP]M$/i, ''))] };
   },
   businessHours: businessHours(),
   eventDisplay: 'block',
@@ -261,28 +262,15 @@ const calendar = new FullCalendar.Calendar(calBox, {
     if (arg.view.type === 'listWeek') return agendaEventContent(arg);
     if (arg.view.type === 'dayGridMonth') {
       const chip = createEventCard(arg.event, 'month-chip');
-      if (!arg.event.allDay && arg.timeText) {
-        const time = document.createElement('span');
-        time.className = 'mc-time';
-        time.textContent = arg.timeText;
-        chip.append(time);
-      }
-      const title = document.createElement('span');
-      title.className = 'mc-title';
-      title.textContent = arg.event.title;
-      chip.append(title);
-      const p = arg.event.extendedProps;
-      appendConflictBadge(chip, p.conflicts);
+      if (!arg.event.allDay && arg.timeText) chip.append(create('span', 'mc-time', arg.timeText));
+      chip.append(create('span', 'mc-title', arg.event.title));
+      appendConflictBadge(chip, arg.event.extendedProps.conflicts);
       const bell = createEventBell(arg.event);
       if (bell) chip.append(bell);
       return { domNodes: [chip] };
     }
     const card = createEventCard(arg.event, arg.event.allDay ? 'all-day-card' : '');
-    const title = document.createElement('div');
-    title.className = 'event-title';
-    title.textContent = arg.event.title;
-    card.append(title);
-    const p = arg.event.extendedProps;
+    card.append(create('div', 'event-title', arg.event.title));
     const bell = createEventBell(arg.event);
     if (bell) {
       card.classList.add('has-alert');
@@ -294,13 +282,8 @@ const calendar = new FullCalendar.Calendar(calBox, {
       dots.setAttribute('aria-label', memberships.map(s => s.name).join(', '));
       card.append(dots);
     }
-    if (!arg.event.allDay && arg.timeText) {
-      const time = document.createElement('div');
-      time.className = 'event-time';
-      time.textContent = arg.timeText;
-      card.append(time);
-    }
-    appendConflictBadge(card, p.conflicts);
+    if (!arg.event.allDay && arg.timeText) card.append(create('div', 'event-time', arg.timeText));
+    appendConflictBadge(card, arg.event.extendedProps.conflicts);
     return { domNodes: [card] };
   },
   events(info, ok, fail) {
@@ -318,10 +301,8 @@ const calendar = new FullCalendar.Calendar(calBox, {
     const badges = document.getElementById('dm');
     badges.replaceChildren();
     (p.sourceDetails || [{ name: p.source, color: event.backgroundColor }]).forEach(source => {
-      const badge = document.createElement('span');
-      badge.className = 'source-badge';
+      const badge = create('span', 'source-badge', source.name);
       badge.style.setProperty('--detail-color', source.color);
-      badge.textContent = source.name;
       badges.append(badge);
     });
     document.getElementById('dlg').style.setProperty('--detail-color', event.backgroundColor || DEFAULT_SOURCE_COLOR);
@@ -397,8 +378,7 @@ function resetSearch() {
 clearSearch.addEventListener('click', resetSearch);
 
 function createEventCard(event, className) {
-  const card = document.createElement('div');
-  card.className = 'event-card' + (className ? ' ' + className : '') + (isCancelledTitle(event.title) ? ' canceled' : '');
+  const card = create('div', 'event-card' + (className ? ' ' + className : '') + (isCancelledTitle(event.title) ? ' canceled' : ''));
   card.title = event.title;
   card.dataset.finish = eventFinishTime(event);
   card.classList.toggle('completed', Number(card.dataset.finish) <= Date.now());
@@ -406,11 +386,9 @@ function createEventCard(event, className) {
 }
 
 function createSourceDots(details) {
-  const dots = document.createElement('div');
-  dots.className = 'event-sources';
+  const dots = create('div', 'event-sources');
   details.forEach(source => {
-    const dot = document.createElement('span');
-    dot.className = 'source-dot';
+    const dot = create('span', 'source-dot');
     dot.style.setProperty('--detail-color', source.color);
     dot.title = source.name;
     dots.append(dot);
@@ -426,31 +404,20 @@ function createEventBell(event) {
 function agendaEventContent(arg) {
   const event = arg.event, p = event.extendedProps;
   const card = createEventCard(event, 'agenda-card');
-  const heading = document.createElement('div');
-  heading.className = 'agenda-heading';
-  const title = document.createElement('span');
-  title.className = 'event-title';
-  title.textContent = event.title;
-  heading.append(title);
+  const heading = create('div', 'agenda-heading');
+  heading.append(create('span', 'event-title', event.title));
   appendConflictBadge(heading, p.conflicts);
   const bell = createEventBell(event);
   if (bell) heading.append(bell);
   card.append(heading);
   const details = [p.location, (p.sourceDetails || []).map(source => source.name).join(', ')].filter(Boolean);
-  if (details.length) {
-    const detail = document.createElement('div');
-    detail.className = 'agenda-detail';
-    detail.textContent = details.join(' · ');
-    card.append(detail);
-  }
+  if (details.length) card.append(create('div', 'agenda-detail', details.join(' · ')));
   return { domNodes: [card] };
 }
 
 function appendConflictBadge(card, conflicts) {
   if (!conflicts?.length) return;
-  const badge = document.createElement('span');
-  badge.className = 'conflict-badge';
-  badge.textContent = 'Overlap';
+  const badge = create('span', 'conflict-badge', 'Overlap');
   badge.title = 'Overlaps with: ' + conflicts.join(', ');
   badge.setAttribute('aria-label', badge.title);
   card.classList.add('has-conflict');
@@ -516,36 +483,23 @@ function renderUpNext() {
   let items = [];
   try { items = pickUpNext(collectOccurrences(sources, now, 7 * DAY_MS), now, 3); } catch { /* Keep the rail empty if a calendar cannot be read. */ }
   upNext.replaceChildren();
-  const heading = document.createElement('h2');
-  heading.textContent = 'Up next';
-  upNext.append(heading);
+  upNext.append(create('h2', '', 'Up next'));
   if (!items.length) {
-    const none = document.createElement('p');
-    none.className = 'up-empty';
-    none.textContent = 'Nothing in the next 7 days.';
-    upNext.append(none);
+    upNext.append(create('p', 'up-empty', 'Nothing in the next 7 days.'));
     return;
   }
   const clock = ms => new Date(ms).toLocaleTimeString([], CLOCK);
   items.forEach((o, i) => {
-    const item = document.createElement('div');
-    item.className = 'up-item';
-    const title = document.createElement('div');
-    title.className = 'up-title';
-    title.textContent = o.title;
-    item.append(title);
+    const item = create('div', 'up-item');
+    item.append(create('div', 'up-title', o.title));
     item.append(createSourceDots(o.sourceDetails || []));
     const bell = alertIndicator(o.key, o.sourceKeys, Infinity);
     if (bell) item.append(bell);
     const day = new Date(o.start).toDateString() === new Date(now).toDateString() ? '' : new Date(o.start).toLocaleDateString(undefined, { weekday: 'short' }) + ' ';
-    const when = document.createElement('div');
-    when.className = 'up-when';
-    when.textContent = o.allDay ? (day || 'Today ') + 'all day'
-      : (i === 0 ? 'in ' + formatRemaining(o.start - now) + ' · ' : '') + day + clock(o.start);
+    const when = create('div', 'up-when', o.allDay ? (day || 'Today ') + 'all day'
+      : (i === 0 ? 'in ' + formatRemaining(o.start - now) + ' · ' : '') + day + clock(o.start));
     item.append(when);
-    if (i === 0 && o.join) {
-      item.append(externalLink(o.join, 'Join', 'up-join'));
-    }
+    if (i === 0 && o.join) item.append(externalLink(o.join, 'Join', 'up-join'));
     upNext.append(item);
   });
 }
@@ -590,16 +544,21 @@ async function syncAlertState() {
     sources: sources.filter(s => s.alertKey).map(s => ({ alertKey: s.alertKey, name: s.name, enabled: s.enabled, icsText: s.feedId ? undefined : s.icsText }))
   });
   try {
-    const status = await (await api('/api/alerts/state', { method: 'POST', body })).json();
-    applyServerStatus(status);
-  } catch { backgroundReachable = false; serverToasts = false; updateSourceHealth(); }
+    applyServerStatus(await apiJson('/api/alerts/state', { method: 'POST', body }));
+  } catch { serverUnreachable(); }
   updateNotifyPanel();
 }
 
 async function refreshServerStatus() {
-  try { applyServerStatus(await (await api('/api/alerts/status')).json()); }
-  catch { serverToasts = false; backgroundReachable = false; updateSourceHealth(); }
+  try { applyServerStatus(await apiJson('/api/alerts/status')); }
+  catch { serverUnreachable(); }
   updateNotifyPanel();
+}
+
+function serverUnreachable() {
+  serverToasts = false;
+  backgroundReachable = false;
+  updateSourceHealth();
 }
 
 function applyServerStatus(status) {
@@ -633,34 +592,23 @@ function alertRulesChanged(requestPermission) {
 }
 
 function buildOffsetEditor(offsets, onChange) {
-  const root = document.createElement('div');
-  root.className = 'offset-editor';
+  const root = create('div', 'offset-editor');
   let list = normalizeOffsets(offsets);
   const set = next => { list = normalizeOffsets(next); onChange(list); draw(); };
   function draw() {
     root.replaceChildren();
-    const chips = document.createElement('div');
-    chips.className = 'offset-chips';
-    if (!list.length) {
-      const none = document.createElement('span');
-      none.className = 'alert-hint';
-      none.textContent = 'No alerts set.';
-      chips.append(none);
-    }
+    const chips = create('div', 'offset-chips');
+    if (!list.length) chips.append(create('span', 'alert-hint', 'No alerts set.'));
     list.forEach(min => {
-      const chip = document.createElement('span');
-      chip.className = 'offset-chip';
-      chip.textContent = formatOffset(min);
-      const rm = document.createElement('button');
+      const chip = create('span', 'offset-chip', formatOffset(min));
+      const rm = create('button', '', '×');
       rm.type = 'button';
-      rm.textContent = '×';
       rm.setAttribute('aria-label', 'Remove alert ' + formatOffset(min));
       rm.onclick = () => set(list.filter(m => m !== min));
       chip.append(rm);
       chips.append(chip);
     });
-    const add = document.createElement('div');
-    add.className = 'offset-add';
+    const add = create('div', 'offset-add');
     add.innerHTML = '<input type="number" min="1" value="15" aria-label="Alert amount"><select aria-label="Alert unit"><option value="1">minutes</option><option value="60">hours</option><option value="1440">days</option></select><button type="button" class="primary">Add</button>';
     const [amount, unit, addBtn] = add.children;
     addBtn.onclick = () => {
@@ -769,7 +717,7 @@ function showStartup(status) {
 }
 
 async function loadStartup() {
-  try { showStartup(await (await api('/api/startup')).json()); } catch { /* No server: the toggle stays hidden. */ }
+  try { showStartup(await apiJson('/api/startup')); } catch { /* No server: the toggle stays hidden. */ }
 }
 
 // Shows progress next to the checkbox: a spinner while working, then a check (fades away) or an error that stays.
@@ -793,8 +741,7 @@ startupToggle.onchange = async () => {
   startupToggle.disabled = true;
   setStartupState('busy', wanted ? 'Turning on…' : 'Turning off…');
   try {
-    const r = await api('/api/startup', { method: 'POST', headers: { 'X-Calendar-Action': '1' }, body: JSON.stringify({ enabled: wanted }) });
-    showStartup(await r.json());
+    showStartup(await apiJson('/api/startup', { method: 'POST', headers: { 'X-Calendar-Action': '1' }, body: JSON.stringify({ enabled: wanted }) }));
     setStartupState('ok', wanted ? 'Turned on' : 'Turned off');
     setStatus(wanted ? 'Server will start with Windows.' : 'Automatic startup turned off.');
   } catch (e) {
@@ -837,29 +784,22 @@ function deliverAlert(occ, now) {
 }
 
 function showToast(occ, body) {
-  const toast = document.createElement('div');
-  toast.className = 'toast';
+  const toast = create('div', 'toast');
   toast.setAttribute('role', 'alert');
-  const title = document.createElement('div');
-  title.className = 'toast-title';
-  title.textContent = occ.title;
-  const text = document.createElement('div');
-  text.className = 'toast-body';
-  text.textContent = body;
-  const actions = document.createElement('div');
-  actions.className = 'toast-actions';
+  const title = create('div', 'toast-title', occ.title);
+  const text = create('div', 'toast-body', body);
+  const actions = create('div', 'toast-actions');
   if (occ.join) actions.append(externalLink(occ.join, 'Join', 'primary'));
   if (Date.now() + SNOOZE_MS < occ.start) {
-    const snooze = document.createElement('button');
+    const snooze = create('button', '', 'Snooze 5 min');
     snooze.type = 'button';
-    snooze.textContent = 'Snooze 5 min';
     snooze.onclick = async () => {
       snooze.disabled = true;
       try {
-        const deferred = await (await api('/api/alerts/snooze', {
+        const deferred = await apiJson('/api/alerts/snooze', {
           method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Calendar-Action': '1' },
           body: JSON.stringify({ key: occ.key, start: occ.start })
-        })).json();
+        });
         snoozedOccurrences.set(occ.key + '|' + occ.start, deferred.dueAt);
         toast.remove();
         setStatus('Reminder snoozed for 5 minutes.');
@@ -870,9 +810,8 @@ function showToast(occ, body) {
     };
     actions.append(snooze);
   }
-  const dismiss = document.createElement('button');
+  const dismiss = create('button', '', 'Dismiss');
   dismiss.type = 'button';
-  dismiss.textContent = 'Dismiss';
   dismiss.onclick = () => toast.remove();
   actions.append(dismiss);
   toast.append(title, text, actions);
@@ -891,16 +830,12 @@ function renderSources() {
   closeSourceMenu(false);
   box.replaceChildren();
   if (!sources.length) {
-    const empty = document.createElement('p');
-    empty.className = 'sb-empty';
-    empty.textContent = 'No calendars yet. Use + to add a link or an .ics file.';
-    box.append(empty);
+    box.append(create('p', 'sb-empty', 'No calendars yet. Use + to add a link or an .ics file.'));
     return;
   }
   sources.forEach(s => {
     if (isReservedGreen(s.color)) s.color = PALETTE[(s.id - 1) % PALETTE.length];
-    const el = document.createElement('div');
-    el.className = 'src' + (s.enabled ? '' : ' off');
+    const el = create('div', 'src' + (s.enabled ? '' : ' off'));
     el.setAttribute('role', 'listitem');
     el.style.setProperty('--source-color', s.color);
     el.innerHTML = '<input type="checkbox" class="src-check" aria-label="Show or hide calendar" title="Show or hide"><span class="src-labels"><span class="src-name"></span><small class="src-health"></small></span><button type="button" class="icon-button bell-button" aria-label="Default alerts" title="Default alerts">' + BELL_ICON + '</button><button type="button" class="icon-button more-button" aria-label="Calendar options" aria-haspopup="menu" aria-expanded="false" title="Options">' + MORE_ICON + '</button><input type="color" class="src-color" tabindex="-1" aria-hidden="true">';
@@ -952,8 +887,7 @@ function updateSourceHealth() {
     const background = backgroundReachable ? backgroundFeedHealth.get(source.feedId) || { state: 'pending' } :
       { ...backgroundFeedHealth.get(source.feedId), state: 'offline' };
     for (const [name, health] of [['Page', page], ['Alerts', background]]) {
-      const line = document.createElement('span');
-      line.className = 'source-sync';
+      const line = create('span', 'source-sync');
       line.dataset.state = health.state;
       line.textContent = name + ': ' + describe(health);
       line.title = name + ': ' + describe(health) + (health.fetchedAt == null ? '' : '\nLast successful refresh: ' + new Date(health.fetchedAt).toLocaleString());
@@ -977,9 +911,8 @@ async function removeSource(s) {
 function startRename(s, row) {
   const span = row.querySelector('.src-name');
   const more = row.querySelector('.more-button');
-  const field = document.createElement('input');
+  const field = create('input', 'src-rename');
   field.type = 'text';
-  field.className = 'src-rename';
   field.value = s.name;
   field.setAttribute('aria-label', 'Calendar name');
   let finished = false;
@@ -1004,8 +937,7 @@ function startRename(s, row) {
 }
 
 // One shared options menu for every calendar row (Rename, Colour, Remove).
-const sourceMenu = document.createElement('div');
-sourceMenu.className = 'src-menu';
+const sourceMenu = create('div', 'src-menu');
 sourceMenu.setAttribute('role', 'menu');
 sourceMenu.hidden = true;
 document.body.append(sourceMenu);
@@ -1027,11 +959,9 @@ function openSourceMenu(s, row, button, colorInput) {
   menuOwner = { button, confirmTimer: 0 };
   button.setAttribute('aria-expanded', 'true');
   const item = (label, onClick, className) => {
-    const b = document.createElement('button');
+    const b = create('button', className, label);
     b.type = 'button';
     b.setAttribute('role', 'menuitem');
-    b.textContent = label;
-    if (className) b.className = className;
     b.onclick = onClick;
     sourceMenu.append(b);
     return b;
@@ -1108,18 +1038,14 @@ async function api(path, opts) {
   if (!r.ok) throw new Error((await r.text()) || 'HTTP ' + r.status);
   return r;
 }
+const apiJson = async (path, opts) => (await api(path, opts)).json();
 
 let pendingRefreshes = 0;
 let refreshQueued = false;
 const skeleton = document.getElementById('calendar-loading');
 for (let i = 0; i < 5; i++) {
-  const column = document.createElement('div');
-  column.className = 'skeleton-column';
-  for (let j = 0; j < 3; j++) {
-    const placeholder = document.createElement('div');
-    placeholder.className = 'skeleton-event';
-    column.append(placeholder);
-  }
+  const column = create('div', 'skeleton-column');
+  for (let j = 0; j < 3; j++) column.append(create('div', 'skeleton-event'));
   skeleton.append(column);
 }
 
@@ -1148,7 +1074,7 @@ async function loadFeeds() {
 
 async function fetchFeeds() {
   let feeds;
-  try { feeds = await (await api('/api/feeds')).json(); }
+  try { feeds = await apiJson('/api/feeds'); }
   catch {
     sources.filter(s => s.feedId).forEach(s => { s.failed = true; s.fetching = false; });
     updateSourceHealth();
@@ -1343,7 +1269,7 @@ function applyBackupClientState(backup, { validateOnly = false } = {}) {
 CalendarBackupUI.init({
   getClientState: getBackupClientState,
   applyClientState: applyBackupClientState,
-  api: async (path, opts) => (await api(path, opts)).json(),
+  api: apiJson,
   onRestoreStart: () => { restoringBackup = true; clearTimeout(alertSyncTimer); },
   onRestoreFailure: ({ uncertain = false } = {}) => {
     restoringBackup = uncertain;
