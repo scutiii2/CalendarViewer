@@ -127,6 +127,7 @@ Remote feed links are saved locally in `data/feeds.json`, which the server creat
 Imported files, cached feed snapshots, and the auto-refresh preference are stored in your browser's local storage.
 Use the same browser profile and address to retain that browser data; clearing site data removes it.
 The server listens only on `127.0.0.1`. This application does not edit the source calendars.
+The [MCP endpoint](#mcp-server) returns event titles, locations and descriptions to any local program that calls it. Set `INTERNAL_API_TOKEN` to require a token.
 
 Calendar data stays on your machine, in `data/` and browser storage. The app contacts only the calendar hosts you add (including redirects); opening a meeting or description link contacts its destination. All libraries are bundled locally: there is no CDN request and no telemetry.
 
@@ -180,6 +181,8 @@ Node.js and Python are not bundled; Python is needed only for packaging.
 - **Port already in use:** stop the previous calendar server or the other application using port 3000.
 - **Feed refresh fails:** confirm the server is running and the ICS link is accessible. Cached events remain available.
 - **Startup does not work:** check that the application folder has not moved and turn startup off and on again from `calendar.bat`.
+- **Armory cannot connect to the MCP server (401/403):** the URL must use `127.0.0.1:3000` or `localhost:3000` (your port if changed) and the `X-Internal-Token` header must match this server's `INTERNAL_API_TOKEN`. Start this server before armory.
+- **MCP tools miss an imported file:** open the calendar page once so it syncs imported files to the server.
 - **Custom port:** set the `PORT` environment variable before launching. Browser storage is separate for each port.
 
 ## Accessibility
