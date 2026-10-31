@@ -27,9 +27,6 @@ DEPLOY_PATHS = [
     "vendor",
     "README.md",
 ]
-# Nothing under DEPLOY_PATHS needs leaving out (tests live in test/, outside them).
-EXCLUDE_DIRS: set[str] = set()
-EXCLUDE_PREFIXES: tuple[str, ...] = ()
 BRANCH = "live"
 REMOTE = "origin"
 ROOT = Path(__file__).resolve().parent.parent
@@ -57,15 +54,7 @@ def remote_live_tip() -> str | None:
 
 def build_tree(source: str) -> str:
     """Write a tree holding only DEPLOY_PATHS from `source`, using a throwaway index."""
-    kept = [
-        line
-        for line in git("ls-tree", "-r", source, "--", *DEPLOY_PATHS).splitlines()
-        if not (
-            line.split("\t", 1)[1].startswith(EXCLUDE_PREFIXES)
-            or EXCLUDE_DIRS.intersection(line.split("\t", 1)[1].split("/")[:-1])
-        )
-    ]
-    listing = "\n".join(kept)
+    listing = git("ls-tree", "-r", source, "--", *DEPLOY_PATHS)
     if not listing:
         sys.exit(f"None of the deploy paths exist in {source}.")
     present = {line.split("\t", 1)[1] for line in listing.splitlines()}

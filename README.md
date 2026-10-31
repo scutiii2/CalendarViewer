@@ -170,7 +170,7 @@ Choose option 5 in `calendar.bat`, or run:
 python scripts/make_zip.py
 ```
 
-The archive is created at `dist/ics-calendar-viewer.zip` and includes the app, the `calendar.bat` launcher, `scripts/`, the tests, and this README.
+The archive is created at `dist/CalendarViewer.zip` and includes everything outside the exclusions below: the app, launchers, `scripts/`, `tools/`, the Docker files, the tests, and this README.
 Generated `.zip` files are excluded wherever they appear in the project, including the output archive itself.
 Git files, dependencies, build output, caches, local settings, secret files, the `data/` folder, and `.ics` files are excluded.
 The previous archive is replaced after packaging succeeds.
