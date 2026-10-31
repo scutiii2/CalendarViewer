@@ -28,6 +28,7 @@ from pathlib import Path
 DEPLOY_PATHS = [
     "Dockerfile",
     "docker-compose.yml",
+    ".env.example",
     "VERSION",
     "src",
     "vendor",

@@ -18,6 +18,8 @@ EXCLUDED_SUFFIXES = {'.pyc', '.pyo', '.log', '.tmp', '.temp', '.zip', '.ics', '.
 
 def excluded(name):
     lower = name.lower()
+    if lower == '.env.example':
+        return False  # the template is meant to ship; real .env files never do
     return (
         lower in EXCLUDED_DIRS
         or lower.startswith(('.git', '.env'))

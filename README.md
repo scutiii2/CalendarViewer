@@ -159,7 +159,7 @@ The Zima box runs the app in Docker beside Citadel, as Scribe and Bard do. Run `
 
 | Option | Action |
 | --- | --- |
-| 1 | **Publish:** copy only the files the image needs (`Dockerfile`, `docker-compose.yml`, `VERSION`, `src/`, `vendor/`, `README.md`) to the `live` branch, without touching your working tree. Use it for test deploys. |
+| 1 | **Publish:** copy only the files the image needs (`Dockerfile`, `docker-compose.yml`, `.env.example`, `VERSION`, `src/`, `vendor/`, `README.md`) to the `live` branch, without touching your working tree. Use it for test deploys. |
 | 2 | **Push .env:** send the git-ignored `.env` over ssh (copy `.env.example` and set `INTERNAL_API_TOKEN` to Citadel's value). |
 | 3 | Both of the above. |
 | 4, 5 | Dry runs of publish and push. |
@@ -199,7 +199,7 @@ python scripts/make_zip.py
 
 The archive is created at `dist/CalendarViewer-<VERSION>.zip` (the number comes from `VERSION`) and includes everything outside the exclusions below: the app, launchers, `scripts/`, the Docker files, the tests, and this README.
 Generated `.zip` files are excluded wherever they appear in the project, including the output archive itself.
-Git files, dependencies, build output, caches, local settings, secret files, the `data/` and `tools/` folders (deploy and release tooling), and `.ics` files are excluded. The `live` branch carries only the files listed under Publish above, so it has neither `tools/` nor any ZIP.
+Git files, dependencies, build output, caches, local settings, secret files (`.env` is excluded; the `.env.example` template is included), the `data/` and `tools/` folders (deploy and release tooling), and `.ics` files are excluded. The `live` branch carries only the files listed under Publish above, so it has neither `tools/` nor any ZIP.
 The previous archive is replaced after packaging succeeds.
 Recipients should extract the ZIP before running the launchers and add their own calendars. Node.js is not bundled.
 
