@@ -53,7 +53,7 @@ To update, extract the new version over the application folder (keep `data/`), t
 
 Extract the entire application into a permanent folder, then double-click `calendar.bat` and choose option 1.
 It starts the server in the background and opens <http://localhost:3000>.
-After startup, press any key to return to the menu, then choose Q. Closing the launcher or the browser does not stop the server.
+After startup, press Enter to return to the menu, then choose Q. Closing the launcher or the browser does not stop the server.
 
 - Choose option 1 again (or run `calendar.bat start`) to restart the server and reopen the calendar.
 - Choose option 2 (or run `calendar.bat stop`) to stop this application's server.
@@ -96,14 +96,16 @@ If you move the application folder, run the startup installer again from the new
 - Each linked calendar shows separate **Page** and **Alerts** refresh states with its last successful refresh time. Failed refreshes retain cached events and their original timestamps. Page data is marked stale after twice the selected auto-refresh interval (at least 10 minutes); background alert data after 10 minutes. **Not needed** means no alert offsets are configured. Imported calendars are labelled **Local file**.
 - Upcoming and ongoing events are green; finished events turn gray. Green is reserved for event status.
 - Refresh manually or select an auto-refresh interval: 1, 5, 10, 15, 30, or 60 minutes. Off disables automatic polling.
-- Auto-refresh, Refresh, and the update status are in the upper-right calendar toolbar. The selected interval is remembered between visits.
+- Auto-refresh, Refresh, and the update status are in the sync strip under the calendar toolbar. The selected interval is remembered between visits.
+- **Working hours** in the sidebar shade the hours outside them, and weekends, in every view. A start later than the end (for example 22:00 to 06:00) is an overnight shift. The choice is remembered.
+- Day view shows an **Up next** list of the next three upcoming events in the coming 7 days, with a Join button for the first when it has a Teams link.
 
 ## Alerts
 
 Get an in-app toast and a system notification a set time before an event starts.
 
 - **Calendar default:** click the bell next to a calendar in the sidebar, then add offsets such as 15 minutes or 1 hour. They apply to every event in that calendar.
-- **Single event:** open an event and choose *Use calendar default*, *Custom alerts for this event*, or *Mute this event*. The setting applies to every occurrence of a recurring event and replaces the calendar default.
+- **Single event:** open an event and choose *Calendar default*, *Custom*, or *Muted*. The setting applies to every occurrence of a recurring event and replaces the calendar default.
 - **Mute everything:** tick *Mute all alerts* in the sidebar. Settings are kept.
 - Events with an active alert show a bell icon. Hidden calendars do not alert.
 - Cancelled events never alert, including events with custom reminders. Their bell is muted and their reminder controls are disabled; saved rules are kept in case the event becomes active again.
@@ -117,7 +119,7 @@ Get an in-app toast and a system notification a set time before an event starts.
 - Alert settings are kept in browser local storage and copied to `data/alerts-state.json` (private, gitignored, excluded from ZIPs). `data/alerts-fired.json` remembers which alerts were sent.
 
 Cached events display while remote calendars refresh. Skeleton placeholders appear when the calendar is empty.
-The interface follows your system's light/dark preference.
+The interface follows your system's light/dark preference unless you pick Light or Dark under **Theme** in the sidebar.
 
 ## Privacy
 
