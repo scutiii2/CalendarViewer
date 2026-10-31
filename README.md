@@ -9,7 +9,7 @@ calendar.bat        double-click launcher (menu), or: calendar.bat start|stop|st
 run.bat             one-click: start the server if needed, restart it after an update, open the calendar
 VERSION             application version, reported by the server at /api/version
 scripts/            calendar.ps1 (start, stop, startup, toast) and make_zip.py
-tools/              deploy.bat (menu) and publish_live.py: put the app on the Zima server
+tools/              deploy.bat (menu) and publish_live.py: put the app on the Zima server; make_zip.bat: ZIP for a GitHub release
 Dockerfile, docker-compose.yml, .env.example   the server image
 src/server/         server.js (entry point), alerts.js (background alerts), reminders.js (snoozes), backups.js,
                     mcp.js (read-only MCP server), json-store.js (atomic JSON files), startup.js, powershell.js
@@ -159,7 +159,7 @@ The Zima box runs the app in Docker beside Citadel, as Scribe and Bard do. Run `
 
 | Option | Action |
 | --- | --- |
-| 1 | **Publish:** copy only the files the image needs (`Dockerfile`, `docker-compose.yml`, `VERSION`, `src/`, `vendor/`, `README.md`) to the `live` branch, without touching your working tree. Use it for test deploys. |
+| 1 | **Publish:** copy only the files the image needs (`Dockerfile`, `docker-compose.yml`, `.env.example`, `VERSION`, `src/`, `vendor/`, `README.md`) to the `live` branch, without touching your working tree. Use it for test deploys. |
 | 2 | **Push .env:** send the git-ignored `.env` over ssh (copy `.env.example` and set `INTERNAL_API_TOKEN` to Citadel's value). |
 | 3 | Both of the above. |
 | 4, 5 | Dry runs of publish and push. |
@@ -187,19 +187,19 @@ In the container:
 
 1. Change the number in `VERSION` and commit.
 2. Run option **R**. It tags `vX.Y.Z` on `main` and `live-vX.Y.Z` on `live`, pushes both with the `live` branch, and refuses a version already released with different files. When the live files are unchanged it only tags the current `live` tip. While a version is not officially released yet, `python tools/publish_live.py --release --replace` moves its two tags to the newest commits.
-3. Create the desktop ZIP with `python scripts/make_zip.py`.
+3. Run `tools\make_zip.bat`. It builds the desktop ZIP, selects it in Explorer and opens GitHub's new-release page for the tag, where you drag the ZIP on and publish.
 
 ## Package the application
 
-Choose option 5 in `calendar.bat`, or run:
+Choose option 5 in `calendar.bat`, double-click `tools\make_zip.bat`, or run:
 
 ```bat
 python scripts/make_zip.py
 ```
 
-The archive is created at `dist/CalendarViewer.zip` and includes everything outside the exclusions below: the app, launchers, `scripts/`, `tools/`, the Docker files, the tests, and this README.
+The archive is created at `dist/CalendarViewer-<VERSION>.zip` (the number comes from `VERSION`) and includes everything outside the exclusions below: the app, launchers, `scripts/`, the Docker files, the tests, and this README.
 Generated `.zip` files are excluded wherever they appear in the project, including the output archive itself.
-Git files, dependencies, build output, caches, local settings, secret files, the `data/` folder, and `.ics` files are excluded.
+Git files, dependencies, build output, caches, local settings, secret files (`.env` is excluded; the `.env.example` template is included), the `data/` and `tools/` folders (deploy and release tooling), and `.ics` files are excluded. The `live` branch carries only the files listed under Publish above, so it has neither `tools/` nor any ZIP.
 The previous archive is replaced after packaging succeeds.
 Recipients should extract the ZIP before running the launchers and add their own calendars. Node.js is not bundled.
 
