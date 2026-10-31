@@ -80,7 +80,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
   function check(silent) {
     const t = now();
     const horizon = Math.max(logic.maxConfiguredOffset(state.rules) * 60000, reminders.horizon());
-    if (!horizon) return 0;
+    if (!horizon) return;
     let due, deferred;
     const suppressed = new Set(reminders.status().pending.map(s => s.key + '|' + s.start));
     try {
@@ -96,7 +96,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
       const fresh = logic.collectOccurrences(freshSources, t, horizon);
       deferred = reminders.takeDue(fresh, state.rules, silent);
     }
-    catch (e) { log('Alert check failed: ' + e.message); return 0; }
+    catch (e) { log('Alert check failed: ' + e.message); return; }
     const deliver = occ => {
       let snoozeUrl;
       if (snoozeBaseUrl && t + logic.SNOOZE_MS < occ.start) {
@@ -116,7 +116,6 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
       try { writeJsonAtomic(firedFile, fired); }
       catch (e) { log('Could not save ' + path.basename(firedFile) + ': ' + e.message); }
     }
-    return due.length + deferred.length;
   }
 
   function tick() {

@@ -207,6 +207,7 @@ function placeSyncStrip() {
 const setSyncState = state => { syncStrip.dataset.state = state; };
 const upNext = document.getElementById('up-next');
 const calBox = document.getElementById('cal');
+const CLOCK = { hour: 'numeric', minute: '2-digit' };
 
 // Hours outside this range, and weekends, are shaded in every view. A start later than the end (22:00 to 06:00)
 // is an overnight shift: the early-morning part belongs to the day after the shift starts.
@@ -229,7 +230,7 @@ function businessHours() {
   ];
 }
 
-const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
+const calendar = new FullCalendar.Calendar(calBox, {
   initialView,
   height: '100%',
   nowIndicator: true,
@@ -237,7 +238,7 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
     if (!arg.isAxis) return undefined;
     const chip = document.createElement('span');
     chip.className = 'now-chip';
-    chip.textContent = arg.date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }).replace(/\s?[AP]M$/i, '');
+    chip.textContent = arg.date.toLocaleTimeString([], CLOCK).replace(/\s?[AP]M$/i, '');
     return { domNodes: [chip] };
   },
   businessHours: businessHours(),
@@ -344,8 +345,7 @@ const calendar = new FullCalendar.Calendar(document.getElementById('cal'), {
     const lastDay = event.allDay && event.end ? new Date(event.end.getTime() - 1) : event.end;
     const spansDays = lastDay && lastDay.toDateString() !== event.start.toDateString();
     document.getElementById('event-date').textContent = event.start.toLocaleDateString(undefined, dateOptions) + (spansDays ? ' – ' + lastDay.toLocaleDateString(undefined, dateOptions) : '');
-    const timeOptions = { hour: 'numeric', minute: '2-digit' };
-    document.getElementById('event-time').textContent = event.allDay ? 'All day' : event.start.toLocaleTimeString(undefined, timeOptions) + (event.end ? ' – ' + event.end.toLocaleTimeString(undefined, timeOptions) + durationText(event.end - event.start) : '');
+    document.getElementById('event-time').textContent = event.allDay ? 'All day' : event.start.toLocaleTimeString(undefined, CLOCK) + (event.end ? ' – ' + event.end.toLocaleTimeString(undefined, CLOCK) + durationText(event.end - event.start) : '');
     const canceled = isCancelledTitle(event.title);
     const conflicts = document.getElementById('event-conflicts');
     conflicts.hidden = !p.conflicts?.length;
@@ -542,7 +542,7 @@ function renderUpNext() {
     upNext.append(none);
     return;
   }
-  const clock = ms => new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const clock = ms => new Date(ms).toLocaleTimeString([], CLOCK);
   items.forEach((o, i) => {
     const item = document.createElement('div');
     item.className = 'up-item';
@@ -955,7 +955,7 @@ function updateSourceHealth() {
   const staleAfter = Math.max(10, minutes * 2) * 60000;
   const describe = health => {
     const at = health.fetchedAt;
-    const time = at == null ? '' : new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const time = at == null ? '' : new Date(at).toLocaleTimeString([], CLOCK);
     const labels = { current: 'Updated', refreshing: 'Refreshing…', error: 'Failed', stale: 'Stale', pending: 'Not fetched', inactive: 'Not needed', offline: 'Server offline' };
     return labels[health.state] + (time ? ' · ' + time : '');
   };
@@ -1146,7 +1146,7 @@ async function loadFeeds() {
   pendingRefreshes++;
   const main = document.querySelector('main');
   main.classList.add('is-refreshing');
-  document.getElementById('cal').setAttribute('aria-busy', 'true');
+  calBox.setAttribute('aria-busy', 'true');
   skeleton.hidden = !!document.querySelector('.fc-event');
   setStatus('Refreshing…');
   setSyncState('busy');
@@ -1157,7 +1157,7 @@ async function loadFeeds() {
       if (syncStrip.dataset.state === 'busy') setSyncState('error');
       skeleton.hidden = true;
       main.classList.remove('is-refreshing');
-      document.getElementById('cal').setAttribute('aria-busy', 'false');
+      calBox.setAttribute('aria-busy', 'false');
       if (refreshQueued) { refreshQueued = false; await loadFeeds(); }
     }
   }
@@ -1215,7 +1215,7 @@ async function fetchFeeds() {
   runAlertCheck(false);
   scheduleAlertSync();
   setSyncState(errors.length ? 'error' : 'ok');
-  setStatus(errors.length ? 'Errors – ' + errors.join('; ') : 'Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
+  setStatus(errors.length ? 'Errors – ' + errors.join('; ') : 'Updated ' + new Date().toLocaleTimeString([], CLOCK));
 }
 
 document.getElementById('refresh').onclick = loadFeeds;

@@ -79,8 +79,9 @@ const startup = createStartupService();
 // Actions that change the machine must come from this page: block other websites and DNS rebinding.
 const HOSTS = [`localhost:${PORT}`, `127.0.0.1:${PORT}`];
 const ORIGINS = HOSTS.map(h => 'http://' + h);
+const isLocalHost = req => HOSTS.includes(req.headers.host);
 const isLocalAction = req => {
-  return req.headers['x-calendar-action'] === '1' && HOSTS.includes(req.headers.host) &&
+  return req.headers['x-calendar-action'] === '1' && isLocalHost(req) &&
     (!req.headers.origin || ORIGINS.includes(req.headers.origin));
 };
 
@@ -96,7 +97,7 @@ http.createServer(async (req, res) => {
     if (url.pathname === '/mcp') {
       const given = String(req.headers['x-internal-token'] || '');
       const tokenOk = !MCP_TOKEN || (given.length === MCP_TOKEN.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(MCP_TOKEN)));
-      if (!HOSTS.includes(req.headers.host) || req.headers.origin || !tokenOk) return send(res, 403, 'Forbidden');
+      if (!isLocalHost(req) || req.headers.origin || !tokenOk) return send(res, 403, 'Forbidden');
       if (req.method !== 'POST') return send(res, 405, 'Use POST');
       let message;
       try { message = JSON.parse(await readBody(req, 1e6)); }
@@ -123,7 +124,7 @@ http.createServer(async (req, res) => {
     }
     const snoozeAction = url.pathname.match(/^\/alerts\/snooze\/([a-f0-9]{48})$/);
     if (snoozeAction && req.method === 'GET') {
-      if (!HOSTS.includes(req.headers.host)) return send(res, 403, 'Forbidden');
+      if (!isLocalHost(req)) return send(res, 403, 'Forbidden');
       try {
         await alerts.snoozeTicket(snoozeAction[1]);
         res.setHeader('Referrer-Policy', 'no-referrer');

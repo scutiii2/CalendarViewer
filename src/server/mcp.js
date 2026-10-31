@@ -34,7 +34,7 @@ function createMcpHandler({ sources, now = Date.now }) {
     return [new Date(start), new Date(end)];
   }
   const merged = (list, from, to) => logic.markConflicts(logic.deduplicateEvents(list.filter(s => s.enabled).flatMap(s => logic.expand(s, from, to))))
-    .filter(e => e.start).sort((a, b) => a.start - b.start);
+    .sort((a, b) => a.start - b.start);
   const summary = e => {
     const p = e.extendedProps;
     return { uid: p.uid, title: e.title, start: e.start.toISOString(), end: e.end && e.end.toISOString(), allDay: e.allDay,

@@ -19,7 +19,7 @@ test('a completed feed updates immediately even while another feed is still load
     parseIcs: text => [text],
     updateSourceHealth() {},
     renderSources() {}, calendar: { refetchEvents() {} }, runAlertCheck() {}, scheduleAlertSync() {},
-    cacheFeedSnapshot() {}, readFeedCache: () => [], writeFeedCache() {}, setSyncState() {}, setStatus() {}
+    cacheFeedSnapshot() {}, readFeedCache: () => [], writeFeedCache() {}, setSyncState() {}, setStatus() {}, CLOCK: {}
   });
   vm.runInContext(functionCode('async function fetchFeeds()', '\ndocument.getElementById(\'refresh\')'), context);
   const done = context.fetchFeeds();
@@ -40,7 +40,7 @@ test('refresh requests during a batch coalesce into one follow-up for newly adde
   let calls = 0;
   const context = vm.createContext({
     pendingRefreshes: 0, restoringBackup: false, refreshQueued: false, skeleton: {}, syncStrip: { dataset: { state: 'ok' } },
-    document: { querySelector: () => ({ classList: { add() {}, remove() {} } }), getElementById: () => ({ setAttribute() {} }) },
+    document: { querySelector: () => ({ classList: { add() {}, remove() {} } }) }, calBox: { setAttribute() {} },
     setStatus() {}, setSyncState() {}, fetchFeeds: async () => { calls++; await pending.promise; }
   });
   vm.runInContext(functionCode('async function loadFeeds()', '\nasync function fetchFeeds()'), context);
