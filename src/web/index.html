@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ICS Calendar Viewer</title>
+<script>try { var t = localStorage.getItem('calendar-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) { }</script>
+<script src="/vendor/ical.min.js"></script>
+<script src="/vendor/fullcalendar.min.js"></script>
+<script src="/shared/alert-logic.js"></script>
+<script src="/shared/search.js"></script>
+<script src="/shared/backup.js"></script>
+<script src="/shared/storage.js"></script>
+<script src="/backup-ui.js"></script>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="unsupported" role="alert">
+  <h1>Landscape desktop view only</h1>
+  <p>Open this calendar on a wider screen, or rotate your device to landscape.</p>
+</div>
+<div class="app">
+<aside id="sidebar" aria-label="Calendars">
+<div class="sb-head">
+  <h1>Calendars</h1>
+  <button id="add-toggle" class="sb-icon" type="button" aria-expanded="false" aria-controls="add-card" aria-label="Add calendar" title="Add calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+</div>
+<div id="add-card" class="add-card" hidden>
+  <div class="sb-seg" role="group" aria-label="How to add a calendar">
+    <button id="mode-link" type="button" aria-pressed="true">Link</button>
+    <button id="mode-file" type="button" aria-pressed="false">File</button>
+  </div>
+  <form id="add" aria-label="Add calendar link">
+    <input name="name" aria-label="Calendar label" placeholder="Label (Work)">
+    <input name="url" aria-label="ICS link" placeholder="ICS link" required>
+    <button type="submit">Add calendar</button>
+  </form>
+  <label id="drop" hidden>Drop .ics files here or click to choose
+    <input id="file" type="file" accept=".ics,text/calendar" multiple hidden>
+  </label>
+</div>
+<div id="sources" role="list"></div>
+<div class="alerts-panel" aria-label="Settings">
+  <div class="sb-hours" role="group" aria-label="Working hours">
+    <span>Working hours</span>
+    <span class="sb-hours-range"><input type="time" id="hours-start" aria-label="Working hours start"><span aria-hidden="true">–</span><input type="time" id="hours-end" aria-label="Working hours end"></span>
+  </div>
+  <div class="sb-hours" role="group" aria-label="Theme">
+    <span>Theme</span>
+    <div class="sb-seg">
+      <button type="button" data-theme-choice="system" aria-pressed="true">System</button>
+      <button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+  <label class="sb-switch"><span>Hide cancelled events</span><input type="checkbox" id="hide-cancelled" role="switch"></label>
+  <label class="sb-switch"><span>Mute all alerts</span><input type="checkbox" id="mute-all" role="switch"></label>
+  <label id="startup-row" class="sb-switch" hidden title="The server starts in the background at sign-in so alerts work with the browser closed."><span>Start with Windows</span><input type="checkbox" id="startup-toggle" role="switch"></label>
+  <div id="startup-state" class="startup-state" role="status" aria-live="polite" hidden><span class="state-icon" aria-hidden="true"></span><span id="startup-state-text"></span></div>
+  <div class="sb-status"><span class="sb-dot" aria-hidden="true"></span><span id="notify-status" role="status"></span></div>
+  <button id="notify-enable" type="button" hidden>Enable system notifications</button>
+  <details class="backup-settings"><summary>Backup &amp; restore</summary>
+    <div class="backup-actions"><button id="backup-export" type="button">Export backup</button><button id="backup-import" type="button">Restore backup</button><button id="backup-undo" type="button">Recovery backup</button></div>
+    <p>Local backups contain private calendar links. Keep them secure.</p>
+    <input id="backup-file" type="file" accept=".json,application/json" hidden>
+  </details>
+</div>
+<div id="drop-overlay" class="drop-overlay" hidden>Drop .ics files to add</div>
+</aside>
+<main>
+<section id="search-tools" aria-label="Search events">
+  <label for="event-search">Search events</label><input id="event-search" type="search" placeholder="Title or location" aria-describedby="search-status">
+  <button id="clear-search" type="button" disabled>Clear</button><p id="search-status" role="status" aria-live="polite" aria-atomic="true"></p>
+</section>
+<div id="sync-strip" class="sync-strip" data-state="idle">
+  <span class="sync-dot" aria-hidden="true"></span>
+  <span id="note" role="status" aria-live="polite"><span id="status"></span></span>
+  <span class="sync-sep" aria-hidden="true">·</span>
+  <label class="sync-auto">Auto-refresh
+    <select id="auto-refresh">
+      <option value="0">off</option><option value="1">every minute</option>
+      <option value="5">every 5 min</option><option value="10">every 10 min</option>
+      <option value="15">every 15 min</option><option value="30">every 30 min</option>
+      <option value="60">every hour</option>
+    </select>
+  </label>
+  <button id="refresh" class="sync-refresh" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.9-3M4 5v4h4M4 13a8 8 0 0 0 14.9 3M20 19v-4h-4"/></svg>Refresh now</button>
+</div>
+<div id="cal"></div><div id="calendar-loading" aria-hidden="true" hidden></div>
+<section id="up-next" class="up-next" aria-label="Up next" hidden></section></main>
+</div>
+<dialog id="dlg" aria-labelledby="dt"><div id="dlg-bar" class="dlg-bar"></div><div class="dialog-body">
+  <form method="dialog"><button class="icon-button dialog-close" aria-label="Close event details" title="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></form>
+  <div id="event-status" class="event-status"></div>
+  <p id="event-conflicts" class="event-conflicts" hidden></p>
+  <h2 id="dt"></h2><div id="dm"></div>
+  <div class="detail-row"><svg class="detail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 2v6m10-6v6M3 11h18"/></svg><div><div id="event-date" class="detail-strong"></div><div id="event-time" class="detail-sub"></div></div></div>
+  <div id="location-row" class="detail-row"><svg class="detail-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg><div id="event-location"></div></div>
+  <div class="detail-actions">
+    <a id="join" class="primary" target="_blank" rel="noopener noreferrer" hidden><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="2" y="5" width="13" height="14" rx="3"/><path d="m17 9 5-3v12l-5-3Z"/></svg>Join meeting</a>
+    <button id="copy-link" class="detail-copy" type="button" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg><span>Copy link</span></button>
+  </div>
+  <section class="alert-section">
+    <div class="alert-head"><h3>Alerts</h3><span id="alert-summary" class="alert-summary"></span></div>
+    <div class="alert-seg" role="radiogroup" aria-label="Alert mode">
+      <label><input type="radio" name="alert-mode" value="default"><span>Calendar default</span></label>
+      <label><input type="radio" name="alert-mode" value="custom"><span>Custom</span></label>
+      <label><input type="radio" name="alert-mode" value="muted"><span>Muted</span></label>
+    </div>
+    <div id="alert-custom"></div>
+    <div class="alert-hint" id="alert-note"></div>
+  </section>
+  <section class="description-section"><h3>Description</h3><pre id="dd"></pre><button id="dd-toggle" class="dd-toggle" type="button" hidden>Show more</button><details id="meeting-footer" class="meeting-footer" hidden><summary>Meeting information &amp; original details</summary><pre id="meeting-footer-text"></pre></details></section>
+</div></dialog>
+<dialog id="cal-alert-dlg" aria-labelledby="cal-alert-title"><div class="dialog-body">
+  <form method="dialog"><button class="icon-button dialog-close" aria-label="Close alert settings" title="Close">×</button></form>
+  <h2 id="cal-alert-title"></h2>
+  <label class="alert-modes"><span><input type="checkbox" id="cal-alert-enabled"> Alerts on for this calendar</span></label>
+  <div id="cal-alert-editor"></div>
+  <p class="alert-hint">Applies to every event in this calendar unless an event has its own setting.</p>
+</div></dialog>
+<div id="toasts" aria-live="assertive"></div>
+<dialog id="backup-preview" aria-labelledby="backup-title"><div class="dialog-body">
+  <h2 id="backup-title">Backup &amp; restore</h2><p id="backup-summary"></p><p id="backup-error" role="alert"></p>
+  <div class="backup-actions"><button id="backup-restore" type="button" class="primary" disabled>Replace with backup</button><button id="backup-cancel" type="button">Cancel</button></div>
+</div></dialog>
+
+<script src="/app.js"></script>
+</body>
+</html>
