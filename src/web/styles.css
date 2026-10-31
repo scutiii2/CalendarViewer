@@ -388,7 +388,6 @@
   .unsupported { display: none; }
   @media (max-width: 800px), (orientation: portrait) {
     .app, dialog, #toasts { display: none !important; }
-    .unsupported { display: flex; }
-    .unsupported { min-height: 100vh; padding: 24px; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; }
+    .unsupported { display: flex; min-height: 100vh; padding: 24px; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 8px; }
     .unsupported h1 { margin: 0; font-size: 20px; } .unsupported p { margin: 0; color: var(--muted); max-width: 32ch; }
   }
