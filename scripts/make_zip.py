@@ -57,7 +57,8 @@ def create_zip(root, output):
 def main():
     root = Path(__file__).resolve().parent.parent
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--output', type=Path, default=root / 'dist' / (root.name + '.zip'))
+    version = (root / 'VERSION').read_text(encoding='utf-8').strip()
+    parser.add_argument('--output', type=Path, default=root / 'dist' / f'{root.name}-{version}.zip')
     args = parser.parse_args()
     count = create_zip(root, args.output)
     print(f'Created {args.output.resolve()} ({count} files)')
