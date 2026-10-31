@@ -1,5 +1,5 @@
 // Local server: serves the web page and fetches ICS links server-side (browsers block them via CORS).
-// Feed links are stored in data/feeds.json (gitignored). Listens on 127.0.0.1 only.
+// Feed links are stored in data/feeds.json (gitignored). Listens on 127.0.0.1 only (CALENDAR_BIND overrides it in Docker).
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { writeJsonAtomic, readJson } = require('./json-store');
 
 const PORT = Number(process.env.PORT) || 3000;
+const BIND = process.env.CALENDAR_BIND || '127.0.0.1'; // 0.0.0.0 only inside the Docker image, where compose publishes loopback
 const ROOT = path.join(__dirname, '..', '..');
 const DATA_DIR = process.env.CALENDAR_DATA_DIR || path.join(ROOT, 'data'); // the override is for tests
 const FEEDS_FILE = path.join(DATA_DIR, 'feeds.json');
@@ -74,12 +75,16 @@ const mcp = createMcpHandler({ sources: alerts.sources });
 const MCP_TOKEN = process.env.INTERNAL_API_TOKEN || ''; // Citadel's shared token; when set, /mcp callers must send it as X-Internal-Token
 const backups = createBackupService({ readFeeds, writeFeeds, alerts, recoveryFile: path.join(DATA_DIR, 'backup-recovery.json') });
 
+if (BIND !== '127.0.0.1' && !MCP_TOKEN) { console.error('Refusing to listen on ' + BIND + ' without INTERNAL_API_TOKEN.'); process.exit(1); }
+
 const startup = createStartupService();
 
 // Actions that change the machine must come from this page: block other websites and DNS rebinding.
 const HOSTS = [`localhost:${PORT}`, `127.0.0.1:${PORT}`];
 const ORIGINS = HOSTS.map(h => 'http://' + h);
 const isLocalHost = req => HOSTS.includes(req.headers.host);
+// Other containers reach /mcp by service name (for example calendar:3000), so that route also accepts these Host values.
+const MCP_HOSTS = HOSTS.concat((process.env.CALENDAR_MCP_HOSTS || '').split(',').map(h => h.trim()).filter(Boolean));
 const isLocalAction = req => {
   return req.headers['x-calendar-action'] === '1' && isLocalHost(req) &&
     (!req.headers.origin || ORIGINS.includes(req.headers.origin));
@@ -97,7 +102,7 @@ http.createServer(async (req, res) => {
     if (url.pathname === '/mcp') {
       const given = String(req.headers['x-internal-token'] || '');
       const tokenOk = !MCP_TOKEN || (given.length === MCP_TOKEN.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(MCP_TOKEN)));
-      if (!isLocalHost(req) || req.headers.origin || !tokenOk) return send(res, 403, 'Forbidden');
+      if (!MCP_HOSTS.includes(req.headers.host) || req.headers.origin || !tokenOk) return send(res, 403, 'Forbidden');
       if (req.method !== 'POST') return send(res, 405, 'Use POST');
       let message;
       try { message = JSON.parse(await readBody(req, 1e6)); }
@@ -180,7 +185,7 @@ http.createServer(async (req, res) => {
   } catch (e) {
     send(res, 500, e.message);
   }
-}).listen(PORT, '127.0.0.1', () => {
+}).listen(PORT, BIND, () => {
   console.log(`ICS viewer: http://localhost:${PORT}`);
   alerts.start();
 });

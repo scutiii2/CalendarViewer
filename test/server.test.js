@@ -84,3 +84,22 @@ test('server serves the web files safely and guards the startup endpoint', async
   assert.equal(JSON.parse(listed.data).result.tools.length, 5);
   assert.equal((await request('POST', '/mcp', json, JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }))).status, 202);
 });
+
+test('server refuses a non-loopback bind without a token and accepts configured MCP hosts', async t => {
+  const env = { ...process.env, CALENDAR_BIND: '0.0.0.0', PORT: '3988', CALENDAR_DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'calendar-data-')) };
+  delete env.INTERNAL_API_TOKEN;
+  const script = path.join(__dirname, '..', 'src', 'server', 'server.js');
+  const refused = spawn(process.execPath, [script], { env, stdio: 'pipe' });
+  assert.equal(await new Promise(resolve => refused.on('exit', resolve)), 1);
+
+  const server = spawn(process.execPath, [script], { env: { ...env, INTERNAL_API_TOKEN: 'secret', CALENDAR_MCP_HOSTS: 'calendar:3988' }, stdio: 'pipe' });
+  t.after(() => server.kill());
+  await new Promise(resolve => server.stdout.on('data', d => String(d).includes('ICS viewer') && resolve()));
+  const status = host => new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port: 3988, path: '/mcp', method: 'POST', headers: { Host: host, 'X-Internal-Token': 'secret' } }, res => { res.resume(); resolve(res.statusCode); });
+    req.on('error', reject);
+    req.end('{"jsonrpc":"2.0","method":"notifications/initialized"}');
+  });
+  assert.equal(await status('calendar:3988'), 202);
+  assert.equal(await status('evil.example:3988'), 403);
+});

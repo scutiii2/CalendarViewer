@@ -1,6 +1,8 @@
 # Dotfiles and dot-folders (.env*, .venv/, .secrets/, .codex/, .agents/, ...)
 .*
 !.gitignore
+!.env.example
+!.dockerignore
 
 # App data and runtime state
 *.ics

@@ -9,6 +9,8 @@ calendar.bat        double-click launcher (menu), or: calendar.bat start|stop|st
 run.bat             one-click: start the server if needed, restart it after an update, open the calendar
 VERSION             application version, reported by the server at /api/version
 scripts/            calendar.ps1 (start, stop, startup, toast) and make_zip.py
+tools/              deploy.bat (menu) and publish_live.py: put the app on the Zima server
+Dockerfile, docker-compose.yml, .env.example   the server image
 src/server/         server.js (entry point), alerts.js (background alerts), reminders.js (snoozes), backups.js,
                     mcp.js (read-only MCP server), json-store.js (atomic JSON files), startup.js
 src/shared/         alert-logic.js, backup.js and search.js (page and server), storage.js (page only)
@@ -149,6 +151,16 @@ To bind it to Citadel's armory as an extension, add this to armory's `configs/co
 ```
 
 If `INTERNAL_API_TOKEN` is set in this server's environment, `/mcp` requires that value in `X-Internal-Token`; unset, it accepts any local caller. Requests with an `Origin` header (browsers) or a foreign `Host` are always refused. A custom `PORT` changes the URL.
+
+## Deploy to the server
+
+The Zima box runs the app in Docker beside Citadel, like Scribe and Bard. Run `tools\deploy.bat` (or `deploy.bat` one folder up):
+
+1. **Publish** copies only the files the image needs (`Dockerfile`, `docker-compose.yml`, `VERSION`, `src/`, `vendor/`, `README.md`) to the `live` branch, without touching your working tree.
+2. **Push .env** sends the git-ignored `.env` (copy `.env.example`, set `INTERNAL_API_TOKEN` to Citadel's value) over ssh.
+3. On the server, in `/media/ZimaOS-HD/Apps/CalendarViewer`: `git pull`, then `docker compose up -d --build`.
+
+Armory binds to it at `http://calendar:3000/mcp` with the same `X-Internal-Token` header as above. The web page is published on the server's loopback only (`CALENDAR_PORT`, default 3000). Data lives in the `calendar_data` volume. Windows notifications are not available in the container, so alerts there fire only in the browser. The server refuses `CALENDAR_BIND` other than `127.0.0.1` unless `INTERNAL_API_TOKEN` is set; `CALENDAR_MCP_HOSTS` lists extra `Host` values accepted on `/mcp`.
 
 ## Package the application
 

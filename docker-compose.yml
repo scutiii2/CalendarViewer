@@ -1,0 +1,33 @@
+# ICS Calendar Viewer: web page plus read-only MCP server.
+# Start:  docker compose up -d --build        (armory reaches it at http://calendar:3000/mcp)
+# Needs a .env next to this file with INTERNAL_API_TOKEN (same value as Citadel's); see .env.example.
+
+name: calendar
+
+services:
+  calendar:
+    build: .
+    restart: unless-stopped
+    environment:
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in .env}
+      CALENDAR_MCP_HOSTS: calendar:3000
+    ports:
+      - "127.0.0.1:${CALENDAR_PORT:-3000}:3000"
+    volumes:
+      - calendar_data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/version').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+    networks: [citadel]
+
+volumes:
+  calendar_data:
+
+networks:
+  # Join the Citadel stack's network so armory can reach http://calendar:3000/mcp. Start the Citadel stack first:
+  # it creates this network.
+  citadel:
+    name: citadel_core
+    external: true
