@@ -4,8 +4,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const Search = require('../src/shared/search');
-const { markConflicts } = require('../src/shared/alert-logic');
-const { visibleEvents, deduplicateEvents } = require('../src/shared/alert-logic');
+const { markConflicts, visibleEvents, deduplicateEvents } = require('../src/shared/alert-logic');
 
 test('search trims a case-insensitive literal query across title and location', () => {
   const event = { title: 'Planning [Q4]', extendedProps: { location: 'East ROOM' } };

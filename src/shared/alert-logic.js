@@ -257,9 +257,9 @@ function pickUpNext(occurrences, now, limit = 3) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    DAY_MS, pruneFired, MAX_OFFSET_MIN, SNOOZE_MS, DELIVERY_WINDOW_MS, DEFAULT_SOURCE_COLOR, VIEWS, eventSourceKeys, eventAlertKey, normalizeOffsets, formatOffset, sanitizeRules, calendarDefaultOffsets, resolveOffsets,
-    maxConfiguredOffset, findDueAlerts, formatRemaining, alertBody, parseIcs, expand, deduplicateEvents,
-    readableUrl, isTeamsMeeting, findMeetingUrl, collectOccurrences, pickUpNext,
+    DAY_MS, pruneFired, MAX_OFFSET_MIN, SNOOZE_MS, DELIVERY_WINDOW_MS, DEFAULT_SOURCE_COLOR, VIEWS, normalizeOffsets, formatOffset, sanitizeRules, resolveOffsets,
+    maxConfiguredOffset, findDueAlerts, alertBody, parseIcs, expand, deduplicateEvents,
+    findMeetingUrl, collectOccurrences, pickUpNext,
     isCancelledTitle, visibleEvents, markConflicts, syncHealth
   };
 }
