@@ -22,12 +22,12 @@ function windowsToast(occ, body, onResult) {
   child.on('exit', code => onResult(code ? 'powershell exited with code ' + code : null));
 }
 
-function createAlertService({ readFeeds, fetchText, notify = windowsToast, stateFile, firedFile, remindersFile, snoozeBaseUrl, now = Date.now, log = console.log }) {
+function createAlertService({ readFeeds, fetchText, notify = windowsToast, stateFile, firedFile, snoozeBaseUrl, now = Date.now, log = console.log }) {
 
   let state = readJson(stateFile, {});
   state = { rules: logic.sanitizeRules(state.rules), sources: Array.isArray(state.sources) ? state.sources : [] };
   const fired = readJson(firedFile, {});
-  const reminders = createReminderStore({ file: remindersFile || path.join(path.dirname(stateFile), 'alerts-snoozed.json'), now });
+  const reminders = createReminderStore({ file: path.join(path.dirname(stateFile), 'alerts-snoozed.json'), now });
   const feedCache = new Map();  // feedId -> { events, fetchedAt }
   const feedHealth = new Map(); // refresh state, independent of the last successful snapshot
   const localCache = new Map(); // alertKey -> { text, events }

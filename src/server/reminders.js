@@ -1,6 +1,5 @@
 // Durable deferred reminders. Only identity and timing are trusted from a saved snooze;
 // the scheduler supplies current calendar details and rules before delivery.
-const fs = require('node:fs');
 const crypto = require('node:crypto');
 const logic = require('../shared/alert-logic');
 const { writeJsonAtomic, readJson } = require('./json-store');
