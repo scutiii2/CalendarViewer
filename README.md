@@ -156,7 +156,7 @@ If `INTERNAL_API_TOKEN` is set in this server's environment, `/mcp` requires tha
 
 The Zima box runs the app in Docker beside Citadel, like Scribe and Bard. Run `tools\deploy.bat` (or `deploy.bat` one folder up):
 
-1. **Publish** copies only the files the image needs (`Dockerfile`, `docker-compose.yml`, `VERSION`, `src/`, `vendor/`, `README.md`) to the `live` branch, without touching your working tree. Each publish is a release: bump `VERSION` first, and it tags the `main` commit `vX.Y.Z` and the live commit `live-vX.Y.Z`. It does nothing when the live files are unchanged, and refuses a changed tree under an already released version.
+1. **Publish** copies only the files the image needs (`Dockerfile`, `docker-compose.yml`, `VERSION`, `src/`, `vendor/`, `README.md`) to the `live` branch, without touching your working tree. A plain publish only updates `live`, which is fine for tests. Option **R** (`publish_live.py --release`) also tags the `main` commit `vX.Y.Z` and the live commit `live-vX.Y.Z`, with the number from `VERSION`; it refuses a version already released with different files, so bump `VERSION` first.
 2. **Push .env** sends the git-ignored `.env` (copy `.env.example`, set `INTERNAL_API_TOKEN` to Citadel's value) over ssh.
 3. On the server, in `/media/ZimaOS-HD/Apps/CalendarViewer`: `git pull`, then `docker compose up -d --build`.
 
