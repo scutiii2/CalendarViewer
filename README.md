@@ -151,7 +151,7 @@ To bind it to Citadel's armory as an extension, add this to armory's `configs/co
 }
 ```
 
-If `INTERNAL_API_TOKEN` is set in this server's environment, `/mcp` requires that value in `X-Internal-Token`; unset, it accepts any local caller. Requests with an `Origin` header (browsers) or a foreign `Host` are always refused. A custom `PORT` changes the URL.
+If `INTERNAL_API_TOKEN` is set in this server's environment, `/mcp` requires that value in `X-Internal-Token`; unset, it accepts any local caller. Requests with an `Origin` header (browsers) or a foreign `Host` are always refused. A custom `PORT` changes the URL. In the server container the URL is `http://calendar:3000/mcp` (see [Deploy to the server](#deploy-to-the-server)).
 
 ## Deploy to the server
 
@@ -166,14 +166,22 @@ The Zima box runs the app in Docker beside Citadel, as Scribe and Bard do. Run `
 | 6 | Copy the one-time `chown` command and open the server's web terminal, if the copy cannot write. |
 | R | **Release:** publish, then tag the `main` commit `vX.Y.Z` and the live commit `live-vX.Y.Z` (see [Releasing](#releasing)). |
 
-Then, on the server in `/media/ZimaOS-HD/Apps/CalendarViewer`, run `git pull` and `docker compose up -d --build`.
+Then, on the server in `/media/ZimaOS-HD/Apps/CalendarViewer`, run `git pull` and `docker compose up -d --build`. First time only: start the Citadel stack (it creates the `citadel_core` network the compose file joins) and clone the `live` branch into that folder (`git clone -b live https://github.com/scutiii2/CalendarViewer .`).
+
+Settings in the server's `.env` (see `.env.example`):
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `INTERNAL_API_TOKEN` | none, required | Citadel's shared token. Armory sends it as `X-Internal-Token`; the container refuses to start without it. |
+| `CALENDAR_PORT` | `3000` | Port the page is published on. |
+| `CALENDAR_BIND_HOST` | `127.0.0.1` | `127.0.0.1` keeps the page on the server (reach it through an ssh tunnel). `0.0.0.0` opens it to the network, for example as a ZimaOS app link. |
 
 In the container:
 
-- Armory reaches the MCP endpoint at `http://calendar:3000/mcp` with the same `X-Internal-Token` header as above. The web page is published on the server's loopback only by default (`CALENDAR_PORT`, default 3000). To open it from the network, for example as a ZimaOS app link, set `CALENDAR_BIND_HOST=0.0.0.0` in `.env`; the page has no sign-in, so anyone on the network can read the calendars. Backup, restore and snooze buttons are refused unless the page is opened as `localhost` or `127.0.0.1`, so use an ssh tunnel for those.
-- Data lives in the `calendar_data` volume.
-- Windows notifications are not available, so alerts fire only in the browser.
-- `INTERNAL_API_TOKEN` is required: the server refuses a `CALENDAR_BIND` other than `127.0.0.1` without it. `CALENDAR_MCP_HOSTS` lists extra `Host` values accepted on `/mcp` (compose sets `calendar:3000`).
+- Armory reaches the MCP endpoint at `http://calendar:3000/mcp`, with the header shown in [MCP server](#mcp-server). `CALENDAR_MCP_HOSTS` lists extra `Host` values accepted on `/mcp`; compose sets `calendar:3000`.
+- The page has no sign-in. With `CALENDAR_BIND_HOST=0.0.0.0`, anyone on the network can read the calendars, so use it only on a network you trust. Backup, restore and snooze buttons are refused unless the page is opened as `localhost` or `127.0.0.1`, so use an ssh tunnel for those: `ssh -L 3000:127.0.0.1:3000 lex@scutiserver1.local`.
+- The server refuses any `CALENDAR_BIND` other than `127.0.0.1` without `INTERNAL_API_TOKEN`. The image sets it to `0.0.0.0` inside the container.
+- Data lives in the `calendar_data` volume. Windows notifications are not available there, so alerts fire only in the browser.
 
 ### Releasing
 
