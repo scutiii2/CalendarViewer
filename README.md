@@ -12,7 +12,7 @@ scripts/            calendar.ps1 (start, stop, startup, toast) and make_zip.py
 tools/              deploy.bat (menu) and publish_live.py: put the app on the Zima server
 Dockerfile, docker-compose.yml, .env.example   the server image
 src/server/         server.js (entry point), alerts.js (background alerts), reminders.js (snoozes), backups.js,
-                    mcp.js (read-only MCP server), json-store.js (atomic JSON files), startup.js
+                    mcp.js (read-only MCP server), json-store.js (atomic JSON files), startup.js, powershell.js
 src/shared/         alert-logic.js, backup.js and search.js (page and server), storage.js (page only)
 src/web/            index.html, styles.css, app.js (the calendar page), backup-ui.js
 vendor/             FullCalendar, ical.js and third-party licences

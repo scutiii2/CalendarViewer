@@ -7,6 +7,14 @@ const M = 60000;
 const fmt = d => new Date(d).toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
 const ics = (uid, title, start) => `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:x\r\nBEGIN:VEVENT\r\nUID:${uid}\r\nDTSTART:${fmt(start)}\r\nDTEND:${fmt(start + 3600000)}\r\nSUMMARY:${title}\r\nDESCRIPTION:https://teams.microsoft.com/l/meetup-join/abc\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`;
 
+const feedRules = (...offsets) => ({ calendars: { 'f:F1': { enabled: true, offsets } } });
+// Lets a test switch the feed fetch offline and back.
+function withOutage(options, message) {
+  const outage = { on: false };
+  const fetchText = async feed => { if (outage.on) throw new Error(message); return options.fetchText(feed); };
+  return { outage, flaky: { ...options, fetchText } };
+}
+
 function setup(feedStart) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'alerts-'));
   const files = { stateFile: path.join(dir, 's.json'), firedFile: path.join(dir, 'f.json') };
@@ -26,7 +34,7 @@ function setup(feedStart) {
 
 test('feed alert fires once at the offset and never twice', async () => {
   const { svc, clock, shown, settle } = setup(20 * M);
-  svc.setState({ rules: { calendars: { 'f:F1': { enabled: true, offsets: [15] } } }, sources: [{ alertKey: 'f:F1', name: 'Work', enabled: true }] });
+  svc.setState({ rules: feedRules(15), sources: [{ alertKey: 'f:F1', name: 'Work', enabled: true }] });
   await settle(svc);
   assert.equal(shown.length, 0, '20 minutes away, 15 minute offset');
   clock.t += 6 * M; await settle(svc);
@@ -78,7 +86,7 @@ test('cancelled events stay silent while active events still notify', async () =
 
 test('fired alerts and rules survive a restart', async () => {
   const { svc, options, clock, shown, settle } = setup(20 * M);
-  svc.setState({ rules: { calendars: { 'f:F1': { enabled: true, offsets: [15] } } }, sources: [{ alertKey: 'f:F1', name: 'Work', enabled: true }] });
+  svc.setState({ rules: feedRules(15), sources: [{ alertKey: 'f:F1', name: 'Work', enabled: true }] });
   clock.t += 6 * M; await settle(svc);
   assert.equal(shown.length, 1);
   const again = createAlertService({ ...options, notify: () => assert.fail('alert fired again after restart') });
@@ -87,23 +95,20 @@ test('fired alerts and rules survive a restart', async () => {
 
 test('background sync health retains the last success on failure and clears it on recovery', async () => {
   const { options, clock, settle } = setup(600 * M);
-  let fail = false;
-  const svc = createAlertService({ ...options, fetchText: async feed => {
-    if (fail) throw new Error('Feed unavailable');
-    return options.fetchText(feed);
-  } });
+  const { outage, flaky } = withOutage(options, 'Feed unavailable');
+  const svc = createAlertService(flaky);
   assert.equal(svc.status().feeds[0].state, 'inactive');
-  svc.setState({ rules: { calendars: { 'f:F1': { enabled: true, offsets: [15] } } }, sources: [] });
+  svc.setState({ rules: feedRules(15), sources: [] });
   await settle(svc);
   const firstSuccess = clock.t;
   assert.equal(svc.status().feeds[0].fetchedAt, firstSuccess);
   assert.equal(svc.status().feeds[0].state, 'current');
-  fail = true;
+  outage.on = true;
   clock.t += 11 * M;
   await settle(svc);
   assert.equal(svc.status().feeds[0].fetchedAt, firstSuccess);
   assert.equal(svc.status().feeds[0].state, 'error');
-  fail = false;
+  outage.on = false;
   await settle(svc);
   assert.equal(svc.status().feeds[0].state, 'current');
   assert.equal(svc.status().feeds[0].fetchedAt, clock.t);
@@ -111,7 +116,7 @@ test('background sync health retains the last success on failure and clears it o
 
 test('a snoozed reminder survives restart, suppresses ordinary offsets and fires once', async () => {
   const { svc, options, clock, shown, settle } = setup(40 * M);
-  svc.setState({ rules: { calendars: { 'f:F1': { enabled: true, offsets: [30, 25] } } }, sources: [] });
+  svc.setState({ rules: feedRules(30, 25), sources: [] });
   await settle(svc);
   clock.t += 11 * M;
   await settle(svc);
@@ -163,20 +168,17 @@ test('a partial state write leaves the previous saved calendars and rules intact
 
 test('snoozed feed reminders wait for fresh data when refresh fails', async () => {
   const { options, clock, shown, settle } = setup(40 * M);
-  let failing = false;
-  const svc = createAlertService({ ...options, fetchText: async feed => {
-    if (failing) throw Error('Offline');
-    return options.fetchText(feed);
-  } });
-  svc.setState({ rules: { calendars: { 'f:F1': { enabled: true, offsets: [30] } } }, sources: [] });
+  const { outage, flaky } = withOutage(options, 'Offline');
+  const svc = createAlertService(flaky);
+  svc.setState({ rules: feedRules(30), sources: [] });
   await settle(svc);
   await svc.snooze({ key: 'feed-1', start: clock.t + 40 * M });
-  failing = true;
+  outage.on = true;
   clock.t += 5 * M;
   await settle(svc);
   assert.equal(shown.length, 0, 'stale data must not deliver a deferred reminder');
   assert.equal(svc.status().snoozes.pending.length, 1);
-  failing = false;
+  outage.on = false;
   await settle(svc);
   assert.equal(shown.length, 1);
 });
@@ -185,7 +187,7 @@ test('Windows snooze actions contain a single-use local link', async () => {
   const { options, clock, settle } = setup(40 * M);
   let notification;
   const svc = createAlertService({ ...options, snoozeBaseUrl: 'http://localhost:3987', notify: (occ, _body, done) => { notification = occ; done(null); } });
-  svc.setState({ rules: { calendars: { 'f:F1': { enabled: true, offsets: [30] } } }, sources: [] });
+  svc.setState({ rules: feedRules(30), sources: [] });
   await settle(svc);
   clock.t += 11 * M;
   await settle(svc);
@@ -198,7 +200,7 @@ test('Windows snooze actions contain a single-use local link', async () => {
 test('starting without alert rules does not block later feed refreshes', async () => {
   const { svc, settle } = setup(40 * M);
   await svc.tick();
-  svc.setState({ rules: { calendars: { 'f:F1': { enabled: true, offsets: [15] } } }, sources: [] });
+  svc.setState({ rules: feedRules(15), sources: [] });
   await settle(svc);
   assert.equal(svc.status().feeds[0].state, 'current');
 });

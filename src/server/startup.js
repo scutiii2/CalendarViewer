@@ -1,15 +1,13 @@
 // Turns "start the server at Windows sign-in" on or off by running scripts/calendar.ps1, the same script calendar.bat uses.
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const { runCalendarScript } = require('./powershell');
 
 const SHORTCUT_NAME = 'ICS Calendar Viewer.lnk';
 
 function runInstaller(args) {
   return new Promise((resolve, reject) => {
-    const child = spawn('powershell.exe', [
-      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, '..', '..', 'scripts', 'calendar.ps1'), ...args
-    ], { windowsHide: true });
+    const child = runCalendarScript(args);
     let output = '';
     child.stdout.on('data', c => { output += c; });
     child.stderr.on('data', c => { output += c; });

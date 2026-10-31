@@ -1,7 +1,7 @@
 // Background alert scheduler: sends Windows toasts for upcoming events even when the web page is closed.
 // The page pushes its alert rules and imported calendars here; feed links are fetched by this process.
 const path = require('path');
-const { spawn } = require('child_process');
+const { runCalendarScript } = require('./powershell');
 const { createReminderStore } = require('./reminders');
 const { writeJsonAtomic, readJson } = require('./json-store');
 
@@ -14,10 +14,10 @@ const TICK_MS = 30000;
 const b64 = text => Buffer.from(String(text || ''), 'utf8').toString('base64');
 
 function windowsToast(occ, body, onResult) {
-  const child = spawn('powershell.exe', [
-    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(__dirname, '..', '..', 'scripts', 'calendar.ps1'),
-    'toast', '-Title', b64(occ.title), '-Body', b64(body), '-Url', b64(occ.join), '-SnoozeUrl', b64(occ.snoozeUrl)
-  ], { windowsHide: true, stdio: 'ignore' });
+  const child = runCalendarScript(
+    ['toast', '-Title', b64(occ.title), '-Body', b64(body), '-Url', b64(occ.join), '-SnoozeUrl', b64(occ.snoozeUrl)],
+    { stdio: 'ignore' }
+  );
   child.on('error', e => onResult(e.message));
   child.on('exit', code => onResult(code ? 'powershell exited with code ' + code : null));
 }

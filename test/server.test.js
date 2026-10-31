@@ -19,24 +19,34 @@ test('startup service reports and toggles the shortcut', async () => {
   await assert.rejects(other.set(true), /only available on Windows/);
 });
 
-// Runs the real server on a spare port to check static files and the startup endpoint guards.
-test('server serves the web files safely and guards the startup endpoint', async t => {
-  const port = 3987;
-  const server = spawn(process.execPath, [path.join(__dirname, '..', 'src', 'server', 'server.js')], { env: { ...process.env, PORT: String(port), CALENDAR_DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'calendar-data-')) }, stdio: 'pipe' });
+const script = path.join(__dirname, '..', 'src', 'server', 'server.js');
+const tempData = () => fs.mkdtempSync(path.join(os.tmpdir(), 'calendar-data-'));
+
+// Spawns the real server and resolves once it prints its banner.
+async function startServer(t, env) {
+  const server = spawn(process.execPath, [script], { env: { ...process.env, CALENDAR_DATA_DIR: tempData(), ...env }, stdio: 'pipe' });
   t.after(() => server.kill());
   await new Promise((resolve, reject) => {
     server.stdout.on('data', d => String(d).includes('ICS viewer') && resolve());
     server.on('exit', code => reject(new Error('server exited with ' + code)));
   });
-  const request = (method, url, headers = {}, body) => new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, path: url, method, headers }, res => {
-      let data = '';
-      res.on('data', c => { data += c; });
-      res.on('end', () => resolve({ status: res.statusCode, type: res.headers['content-type'], data }));
-    });
-    req.on('error', reject);
-    req.end(body);
+}
+
+const requester = port => (method, url, headers = {}, body) => new Promise((resolve, reject) => {
+  const req = http.request({ host: '127.0.0.1', port, path: url, method, headers }, res => {
+    let data = '';
+    res.on('data', c => { data += c; });
+    res.on('end', () => resolve({ status: res.statusCode, type: res.headers['content-type'], data }));
   });
+  req.on('error', reject);
+  req.end(body);
+});
+
+// Runs the real server on a spare port to check static files and the startup endpoint guards.
+test('server serves the web files safely and guards the startup endpoint', async t => {
+  const port = 3987;
+  await startServer(t, { PORT: String(port) });
+  const request = requester(port);
 
   for (const [url, type] of [['/', 'text/html'], ['/styles.css', 'text/css'], ['/app.js', 'text/javascript'], ['/backup-ui.js', 'text/javascript'], ['/shared/alert-logic.js', 'text/javascript'], ['/shared/search.js', 'text/javascript'], ['/shared/backup.js', 'text/javascript'], ['/shared/storage.js', 'text/javascript'], ['/vendor/ical.min.js', 'text/javascript']]) {
     const r = await request('GET', url);
@@ -86,20 +96,14 @@ test('server serves the web files safely and guards the startup endpoint', async
 });
 
 test('server refuses a non-loopback bind without a token and accepts configured MCP hosts', async t => {
-  const env = { ...process.env, CALENDAR_BIND: '0.0.0.0', PORT: '3988', CALENDAR_DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'calendar-data-')) };
+  const env = { ...process.env, CALENDAR_BIND: '0.0.0.0', PORT: '3988', CALENDAR_DATA_DIR: tempData() };
   delete env.INTERNAL_API_TOKEN;
-  const script = path.join(__dirname, '..', 'src', 'server', 'server.js');
   const refused = spawn(process.execPath, [script], { env, stdio: 'pipe' });
   assert.equal(await new Promise(resolve => refused.on('exit', resolve)), 1);
 
-  const server = spawn(process.execPath, [script], { env: { ...env, INTERNAL_API_TOKEN: 'secret', CALENDAR_MCP_HOSTS: 'calendar:3988' }, stdio: 'pipe' });
-  t.after(() => server.kill());
-  await new Promise(resolve => server.stdout.on('data', d => String(d).includes('ICS viewer') && resolve()));
-  const status = host => new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port: 3988, path: '/mcp', method: 'POST', headers: { Host: host, 'X-Internal-Token': 'secret' } }, res => { res.resume(); resolve(res.statusCode); });
-    req.on('error', reject);
-    req.end('{"jsonrpc":"2.0","method":"notifications/initialized"}');
-  });
+  await startServer(t, { ...env, INTERNAL_API_TOKEN: 'secret', CALENDAR_MCP_HOSTS: 'calendar:3988' });
+  const request = requester(3988);
+  const status = host => request('POST', '/mcp', { Host: host, 'X-Internal-Token': 'secret' }, '{"jsonrpc":"2.0","method":"notifications/initialized"}').then(r => r.status);
   assert.equal(await status('calendar:3988'), 202);
   assert.equal(await status('evil.example:3988'), 403);
 });

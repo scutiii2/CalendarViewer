@@ -19,13 +19,13 @@ function createBackupService({ readFeeds, writeFeeds, alerts, recoveryFile }) {
     }
     try {
       writeFeeds(next.feeds);
-      alerts.invalidateFeeds?.();
+      alerts.invalidateFeeds();
       const flags = new Map(next.feedPreferences.map(p => [p.feedId,p]));
       alerts.setState({rules:next.alertRules,sources:[...next.localSources,...next.feeds.map(f => ({alertKey:'f:'+f.id,name:flags.get(f.id)?.name || f.name,enabled:flags.get(f.id)?.enabled !== false}))]});
     } catch (error) {
       const rollbackErrors = [];
       try { writeFeeds(oldFeeds); } catch (e) { rollbackErrors.push(e.message); }
-      alerts.invalidateFeeds?.();
+      alerts.invalidateFeeds();
       try { alerts.setState(oldAlerts); } catch (e) { rollbackErrors.push(e.message); }
       if (rollbackErrors.length) throw new Error(error.message + '; rollback failed: ' + rollbackErrors.join('; ') + '. Previous backup is available in recovery.');
       throw error;
