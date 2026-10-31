@@ -514,7 +514,7 @@ function renderUpNext() {
   if (upNext.hidden) return;
   const now = Date.now();
   let items = [];
-  try { items = pickUpNext(collectOccurrences(sources, now, 7 * 86400000), now, 3); } catch { /* Keep the rail empty if a calendar cannot be read. */ }
+  try { items = pickUpNext(collectOccurrences(sources, now, 7 * DAY_MS), now, 3); } catch { /* Keep the rail empty if a calendar cannot be read. */ }
   upNext.replaceChildren();
   const heading = document.createElement('h2');
   heading.textContent = 'Up next';
@@ -820,7 +820,7 @@ function runAlertCheck(silent) {
     const deferredUntil = snoozedOccurrences.get(a.occ.key + '|' + a.occ.start);
     if (!silent && !a.superseded && !(deferredUntil && now <= deferredUntil + 30000)) deliverAlert(a.occ, now);
   });
-  Object.keys(firedAlerts).forEach(id => { if (firedAlerts[id] < now - 86400000) delete firedAlerts[id]; });
+  pruneFired(firedAlerts, now);
   if (due.length) saveFiredAlerts();
 }
 

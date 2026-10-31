@@ -111,7 +111,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
       deliver(a.occ);
     });
     deferred.forEach(a => deliver(a.occ));
-    Object.keys(fired).forEach(id => { if (fired[id] < t - 86400000) delete fired[id]; });
+    logic.pruneFired(fired, t);
     if (due.length) {
       try { writeJsonAtomic(firedFile, fired); }
       catch (e) { log('Could not save ' + path.basename(firedFile) + ': ' + e.message); }

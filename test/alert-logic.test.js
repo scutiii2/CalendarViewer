@@ -96,3 +96,9 @@ test('sync health distinguishes never fetched, failure, stale data and recovery'
   assert.equal(L.syncHealth({ failed: true }, now).state, 'error');
   assert.equal(L.syncHealth({ fetchedAt: now, failed: false }, now).state, 'current');
 });
+
+test('pruneFired drops markers older than a day and keeps recent ones', () => {
+  const fired = { old: now - L.DAY_MS - 1, recent: now - L.DAY_MS + 1, future: now + M };
+  L.pruneFired(fired, now);
+  assert.deepEqual(Object.keys(fired), ['recent', 'future']);
+});

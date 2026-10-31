@@ -4,7 +4,7 @@ const logic = require('../shared/alert-logic.js');
 const Search = require('../shared/search.js');
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'];
-const DAY_MS = 86400000;
+const { DAY_MS } = logic;
 const MAX_SPAN_MS = 93 * DAY_MS;
 const MAX_EVENTS = 200;
 const text = value => ({ content: [{ type: 'text', text: JSON.stringify(value) }] });
