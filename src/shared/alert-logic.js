@@ -189,14 +189,13 @@ function deduplicateEvents(events) {
     if (!existing) {
       p.sources = [p.source];
       grouped.set(key, event);
-    } else if (!existing.extendedProps.sources.includes(p.source)) {
-      existing.extendedProps.sources.push(p.source);
+      return;
     }
-    if (existing) {
-      p.sourceDetails.forEach(source => {
-        if (!existing.extendedProps.sourceDetails.some(s => s.id === source.id)) existing.extendedProps.sourceDetails.push(source);
-      });
-    }
+    const merged = existing.extendedProps;
+    if (!merged.sources.includes(p.source)) merged.sources.push(p.source);
+    p.sourceDetails.forEach(source => {
+      if (!merged.sourceDetails.some(s => s.id === source.id)) merged.sourceDetails.push(source);
+    });
   });
   return [...grouped.values()];
 }

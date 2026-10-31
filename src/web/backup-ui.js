@@ -30,8 +30,7 @@
     };
     el('backup-cancel').onclick = () => { if (!busy) {pending=null; dialog.close();} };
     dialog.addEventListener('cancel', e => { if(busy)e.preventDefault(); else pending=null; });
-    const undo = el('backup-undo');
-    if(undo) undo.onclick=async()=>{if(busy)return;try{preview(await request('/api/backup/recovery'));}catch(e){showError(e);}};
+    el('backup-undo').onclick=async()=>{if(busy)return;try{preview(await request('/api/backup/recovery'));}catch(e){showError(e);}};
     restore.onclick = async () => {
       if (!pending || busy) return;
       busy=true;restore.disabled=true;error.textContent='';

@@ -112,12 +112,11 @@ function restoreLocalSources() {
   catch { localStorage.removeItem(LOCAL_SOURCES_KEY); return; }
   if (!Array.isArray(saved)) return;
   saved.forEach(s => {
-    if (!s || typeof s.icsText !== 'string') return;
+    if (!s || typeof s.icsText !== 'string' || typeof s.alertKey !== 'string') return;
     try {
       sources.push({
         id: nextId++, name: String(s.name || 'Local calendar'), color: s.color || PALETTE[sources.length % PALETTE.length],
-        enabled: s.enabled !== false, events: parseIcs(s.icsText), icsText: s.icsText,
-        alertKey: s.alertKey || 'l:' + crypto.randomUUID()
+        enabled: s.enabled !== false, events: parseIcs(s.icsText), icsText: s.icsText, alertKey: s.alertKey
       });
     } catch { /* Ignore a saved calendar that can no longer be read. */ }
   });
@@ -167,6 +166,16 @@ function focusCurrentTime() {
   requestAnimationFrame(() => requestAnimationFrame(() => calendar.scrollToTime(scrollTime)));
 }
 
+function externalLink(href, text, className) {
+  const link = document.createElement('a');
+  if (className) link.className = className;
+  link.href = href;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = text;
+  return link;
+}
+
 function renderDetailText(element, text) {
   const value = String(text || '');
   element.replaceChildren();
@@ -175,12 +184,7 @@ function renderDetailText(element, text) {
     element.append(document.createTextNode(value.slice(offset, match.index)));
     const url = readableUrl(match[0]);
     if (url) {
-      const link = document.createElement('a');
-      link.href = url.href;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      link.textContent = isTeamsMeeting(url) ? 'Join Teams meeting' : 'Open link';
-      element.append(link);
+      element.append(externalLink(url.href, isTeamsMeeting(url) ? 'Join Teams meeting' : 'Open link'));
     } else element.append(document.createTextNode('[Link unavailable]'));
     offset = match.index + match[0].length;
   }
@@ -384,31 +388,29 @@ calendar.render();
 placeSyncStrip();
 
 function updateSearchStatus(count, total) {
-  if (clearSearch) clearSearch.disabled = !searchQuery;
-  if (!searchStatus) return;
+  clearSearch.disabled = !searchQuery;
   searchStatus.textContent = searchQuery.trim()
     ? (count ? count + ' of ' + total + ' events match in this date range.' : 'No matching events in this date range. Clear search or change dates.')
     : 'Search titles and locations in the displayed date range.';
 }
 
-if (searchInput) {
-  searchInput.addEventListener('input', () => {
-    searchQuery = searchInput.value;
-    calendar.refetchEvents();
-  });
-  searchInput.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && searchInput.value) {
-      event.preventDefault();
-      resetSearch();
-    }
-  });
-}
+searchInput.addEventListener('input', () => {
+  searchQuery = searchInput.value;
+  calendar.refetchEvents();
+});
+searchInput.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && searchInput.value) {
+    event.preventDefault();
+    resetSearch();
+  }
+});
 function resetSearch() {
   searchQuery = '';
-  if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+  searchInput.value = '';
+  searchInput.focus();
   calendar.refetchEvents();
 }
-if (clearSearch) clearSearch.addEventListener('click', resetSearch);
+clearSearch.addEventListener('click', resetSearch);
 
 function createEventCard(event, className) {
   const card = document.createElement('div');
@@ -558,13 +560,7 @@ function renderUpNext() {
       : (i === 0 ? 'in ' + formatRemaining(o.start - now) + ' · ' : '') + day + clock(o.start);
     item.append(when);
     if (i === 0 && o.join) {
-      const join = document.createElement('a');
-      join.className = 'up-join';
-      join.href = o.join;
-      join.target = '_blank';
-      join.rel = 'noopener noreferrer';
-      join.textContent = 'Join';
-      item.append(join);
+      item.append(externalLink(o.join, 'Join', 'up-join'));
     }
     upNext.append(item);
   });
@@ -869,15 +865,7 @@ function showToast(occ, body) {
   text.textContent = body;
   const actions = document.createElement('div');
   actions.className = 'toast-actions';
-  if (occ.join) {
-    const join = document.createElement('a');
-    join.className = 'primary';
-    join.href = occ.join;
-    join.target = '_blank';
-    join.rel = 'noopener noreferrer';
-    join.textContent = 'Join';
-    actions.append(join);
-  }
+  if (occ.join) actions.append(externalLink(occ.join, 'Join', 'primary'));
   if (Date.now() + SNOOZE_MS < occ.start) {
     const snooze = document.createElement('button');
     snooze.type = 'button';
@@ -1284,7 +1272,6 @@ document.getElementById('add').onsubmit = async e => {
   } catch (err) { setStatus('Add failed: ' + err.message); }
 };
 restoreLocalSources();
-saveLocalSources(); // persists alertKey for calendars saved before alerts existed
 restoreFeedCache();
 renderSources();
 calendar.refetchEvents();
