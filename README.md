@@ -24,7 +24,8 @@ data/               your feeds and alert state (created at run time, private)
 
 - Windows with Node.js 18 or newer on PATH. A currently supported Node.js LTS release is recommended.
 - A browser; an internet connection is needed only for remote calendar feeds and links you open.
-- Python 3.8 or newer only if you want to create a distribution ZIP.
+- Python 3.8 or newer only if you want to create a distribution ZIP or publish to the server.
+- Docker only on the server that runs the container image (see [Deploy to the server](#deploy-to-the-server)).
 
 No dependency installation or build step is required.
 
@@ -49,7 +50,7 @@ Double-click `run.bat` (or run `run.bat -NoBrowser` to skip the browser). It doe
 - Server running and up to date: leaves it running and opens the calendar.
 - Server running but older than the files on disk (the `VERSION` differs, or a file in `src/` or `vendor/` is newer than the server process): restarts it, then opens the calendar.
 
-To update, extract the new version over the application folder (keep `data/`), then double-click `run.bat`. Maintainers: change the number in `VERSION` for each release.
+To update, extract the new version over the application folder (keep `data/`), then double-click `run.bat`. Maintainers: see [Releasing](#releasing).
 
 ## Start, restart, and stop
 
@@ -154,13 +155,31 @@ If `INTERNAL_API_TOKEN` is set in this server's environment, `/mcp` requires tha
 
 ## Deploy to the server
 
-The Zima box runs the app in Docker beside Citadel, like Scribe and Bard. Run `tools\deploy.bat` (or `deploy.bat` one folder up):
+The Zima box runs the app in Docker beside Citadel, as Scribe and Bard do. Run `tools\deploy.bat` (or `deploy.bat` one folder up) and pick an option:
 
-1. **Publish** copies only the files the image needs (`Dockerfile`, `docker-compose.yml`, `VERSION`, `src/`, `vendor/`, `README.md`) to the `live` branch, without touching your working tree. A plain publish only updates `live`, which is fine for tests. Option **R** (`publish_live.py --release`) also tags the `main` commit `vX.Y.Z` and the live commit `live-vX.Y.Z`, with the number from `VERSION`; it refuses a version already released with different files, so bump `VERSION` first.
-2. **Push .env** sends the git-ignored `.env` (copy `.env.example`, set `INTERNAL_API_TOKEN` to Citadel's value) over ssh.
-3. On the server, in `/media/ZimaOS-HD/Apps/CalendarViewer`: `git pull`, then `docker compose up -d --build`.
+| Option | Action |
+| --- | --- |
+| 1 | **Publish:** copy only the files the image needs (`Dockerfile`, `docker-compose.yml`, `VERSION`, `src/`, `vendor/`, `README.md`) to the `live` branch, without touching your working tree. Use it for test deploys. |
+| 2 | **Push .env:** send the git-ignored `.env` over ssh (copy `.env.example` and set `INTERNAL_API_TOKEN` to Citadel's value). |
+| 3 | Both of the above. |
+| 4, 5 | Dry runs of publish and push. |
+| 6 | Copy the one-time `chown` command and open the server's web terminal, if the copy cannot write. |
+| R | **Release:** publish, then tag the `main` commit `vX.Y.Z` and the live commit `live-vX.Y.Z` (see [Releasing](#releasing)). |
 
-Armory binds to it at `http://calendar:3000/mcp` with the same `X-Internal-Token` header as above. The web page is published on the server's loopback only (`CALENDAR_PORT`, default 3000). Data lives in the `calendar_data` volume. Windows notifications are not available in the container, so alerts there fire only in the browser. The server refuses `CALENDAR_BIND` other than `127.0.0.1` unless `INTERNAL_API_TOKEN` is set; `CALENDAR_MCP_HOSTS` lists extra `Host` values accepted on `/mcp`.
+Then, on the server in `/media/ZimaOS-HD/Apps/CalendarViewer`, run `git pull` and `docker compose up -d --build`.
+
+In the container:
+
+- Armory reaches the MCP endpoint at `http://calendar:3000/mcp` with the same `X-Internal-Token` header as above. The web page is published on the server's loopback only (`CALENDAR_PORT`, default 3000).
+- Data lives in the `calendar_data` volume.
+- Windows notifications are not available, so alerts fire only in the browser.
+- `INTERNAL_API_TOKEN` is required: the server refuses a `CALENDAR_BIND` other than `127.0.0.1` without it. `CALENDAR_MCP_HOSTS` lists extra `Host` values accepted on `/mcp` (compose sets `calendar:3000`).
+
+### Releasing
+
+1. Change the number in `VERSION` and commit.
+2. Run option **R**. It tags `vX.Y.Z` on `main` and `live-vX.Y.Z` on `live`, pushes both with the `live` branch, and refuses a version already released with different files. When the live files are unchanged it only tags the current `live` tip.
+3. Create the desktop ZIP with `python scripts/make_zip.py`.
 
 ## Package the application
 
@@ -185,6 +204,7 @@ Recipients should extract the ZIP before running the launchers and add their own
 - **Armory cannot connect to the MCP server (401/403):** the URL must use `127.0.0.1:3000` or `localhost:3000` (your port if changed) and the `X-Internal-Token` header must match this server's `INTERNAL_API_TOKEN`. Start this server before armory.
 - **MCP tools miss an imported file:** open the calendar page once so it syncs imported files to the server.
 - **Custom port:** set the `PORT` environment variable before launching. Browser storage is separate for each port.
+- **Container exits at start:** `INTERNAL_API_TOKEN` is missing from the server's `.env`. Push it again (option 2) and rerun `docker compose up -d --build`.
 
 ## Accessibility
 
