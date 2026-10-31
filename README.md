@@ -11,7 +11,7 @@ VERSION             application version, reported by the server at /api/version
 scripts/            calendar.ps1 (start, stop, startup, toast) and make_zip.py
 src/server/         server.js (entry point), alerts.js (background alerts), reminders.js (snoozes), backups.js,
                     mcp.js (read-only MCP server), json-store.js (atomic JSON files), startup.js
-src/shared/         alert-logic.js and backup.js (page and server), storage.js and search.js (page only)
+src/shared/         alert-logic.js, backup.js and search.js (page and server), storage.js (page only)
 src/web/            index.html, styles.css, app.js (the calendar page), backup-ui.js
 vendor/             FullCalendar, ical.js and third-party licences
 test/               run with: node --test
@@ -131,8 +131,7 @@ Open **Backup & restore** in the sidebar to export a local JSON backup. It inclu
 
 Choose **Restore backup** to validate a file and preview the calendar/rule counts before replacing your current configuration. Restore checks browser storage first and saves the previous configuration in `data/backup-recovery.json`. **Recovery backup** previews that saved configuration for restoring it. Failed writes roll back; if an interrupted connection prevents confirming recovery, synchronization pauses and the page explains how to recover. Wait for any active calendar refresh to finish before exporting or restoring.
 
-Backup files and recovery snapshots contain private calendar links and event contents. Keep them secure; they are not encrypted.
-ICS links may contain secret access tokens. Keep `data/`, imported calendars and browser storage private and do not share feed links. The `data/` folder (feeds, alert state, recovery and snooze files) is excluded from distribution ZIPs.
+Backup files and recovery snapshots contain private calendar links and event contents, and are not encrypted. ICS links may contain secret access tokens. Keep backups, `data/`, imported calendars and browser storage private, and do not share feed links.
 
 ## MCP server
 
