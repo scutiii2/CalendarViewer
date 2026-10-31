@@ -1,3 +1,13 @@
+// localStorage throws when blocked or full, so every access goes through here. Reads fall back; writes report only when given a message.
+const store = {
+  get(key) { try { return localStorage.getItem(key); } catch { return null; } },
+  json(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } },
+  list(key) { const value = store.json(key, []); return Array.isArray(value) ? value : []; },
+  set(key, value, failure) {
+    try { localStorage.setItem(key, value); }
+    catch (e) { if (failure) setStatus(failure + ': ' + e.message); }
+  }
+};
 const PALETTE = ['#2563eb', '#dc2626', '#d97706', '#7c3aed', '#0891b2', '#db2777'];
 const LOCAL_SOURCES_KEY = 'ics-calendar-viewer.localSources.v1';
 const FEED_CACHE_KEY = 'ics-calendar-viewer.feedSnapshots.v1';
@@ -9,24 +19,20 @@ let nextId = 1;
 const HIDE_CANCELLED_KEY = 'ics-calendar-viewer.hideCancelled.v1';
 const VIEW_KEY = 'ics-calendar-viewer.view.v1';
 let initialView = 'timeGridWorkWeek';
-try {
-  const savedView = localStorage.getItem(VIEW_KEY);
-  if (VIEWS.includes(savedView)) initialView = savedView;
-} catch { }
+const savedView = store.get(VIEW_KEY);
+if (VIEWS.includes(savedView)) initialView = savedView;
 let searchQuery = '';
 const searchInput = document.getElementById('event-search');
 const clearSearch = document.getElementById('clear-search');
 const searchStatus = document.getElementById('search-status');
-let hideCancelled = false;
-try { hideCancelled = localStorage.getItem(HIDE_CANCELLED_KEY) === 'true'; } catch { }
+let hideCancelled = store.get(HIDE_CANCELLED_KEY) === 'true';
 let backgroundFeedHealth = new Map();
 let backgroundReachable = false;
 
 const ALERT_RULES_KEY = 'ics-calendar-viewer.alertRules.v1';
 const ALERT_FIRED_KEY = 'ics-calendar-viewer.alertsFired.v1';
-let alertRules, firedAlerts;
-try { alertRules = sanitizeRules(JSON.parse(localStorage.getItem(ALERT_RULES_KEY))); } catch { alertRules = sanitizeRules(null); }
-try { firedAlerts = JSON.parse(localStorage.getItem(ALERT_FIRED_KEY)) || {}; } catch { firedAlerts = {}; }
+let alertRules = sanitizeRules(store.json(ALERT_RULES_KEY, null));
+let firedAlerts = store.json(ALERT_FIRED_KEY, {});
 const BELL_PATH = '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>';
 const BELL_OFF_PATH = BELL_PATH + '<path d="M3 3l18 18"/>';
 
@@ -84,34 +90,23 @@ function feedPreferenceSnapshots() {
 }
 
 function saveLocalSources() {
-  try { localStorage.setItem(LOCAL_SOURCES_KEY, JSON.stringify(localSourceSnapshots())); }
-  catch (e) { setStatus('Could not save local calendars: ' + e.message); }
+  store.set(LOCAL_SOURCES_KEY, JSON.stringify(localSourceSnapshots()), 'Could not save local calendars');
   saveFeedPreferences();
   scheduleAlertSync();
 }
 
-function readFeedPreferences() {
-  try { const saved = JSON.parse(localStorage.getItem(FEED_PREFERENCES_KEY) || '[]'); return Array.isArray(saved) ? saved : []; }
-  catch { return []; }
-}
-
 function saveFeedPreferences() {
-  const prefs = new Map(readFeedPreferences().filter(s => s && typeof s.feedId === 'string').map(s => [s.feedId, s]));
+  const prefs = new Map(store.list(FEED_PREFERENCES_KEY).filter(s => s && typeof s.feedId === 'string').map(s => [s.feedId, s]));
   feedPreferenceSnapshots().forEach(s => prefs.set(s.feedId, s));
-  try { localStorage.setItem(FEED_PREFERENCES_KEY, JSON.stringify([...prefs.values()])); }
-  catch (e) { setStatus('Could not save calendar preferences: ' + e.message); }
+  store.set(FEED_PREFERENCES_KEY, JSON.stringify([...prefs.values()]), 'Could not save calendar preferences');
 }
 
 function feedPreference(feedId) {
-  return readFeedPreferences().find(s => s && s.feedId === feedId) || {};
+  return store.list(FEED_PREFERENCES_KEY).find(s => s && s.feedId === feedId) || {};
 }
 
 function restoreLocalSources() {
-  let saved;
-  try { saved = JSON.parse(localStorage.getItem(LOCAL_SOURCES_KEY) || '[]'); }
-  catch { localStorage.removeItem(LOCAL_SOURCES_KEY); return; }
-  if (!Array.isArray(saved)) return;
-  saved.forEach(s => {
+  store.list(LOCAL_SOURCES_KEY).forEach(s => {
     if (!s || typeof s.icsText !== 'string' || typeof s.alertKey !== 'string') return;
     try {
       sources.push({
@@ -122,17 +117,8 @@ function restoreLocalSources() {
   });
 }
 
-function readFeedCache() {
-  try {
-    const cached = JSON.parse(localStorage.getItem(FEED_CACHE_KEY) || '[]');
-    return Array.isArray(cached) ? cached : [];
-  } catch { return []; }
-}
-
-function writeFeedCache(cached) {
-  try { localStorage.setItem(FEED_CACHE_KEY, JSON.stringify(cached)); }
-  catch (e) { setStatus('Could not save calendar cache: ' + e.message); }
-}
+const readFeedCache = () => store.list(FEED_CACHE_KEY);
+const writeFeedCache = cached => store.set(FEED_CACHE_KEY, JSON.stringify(cached), 'Could not save calendar cache');
 
 function cacheFeedSnapshot(feed, icsText) {
   const cached = readFeedCache().filter(s => s.feedId !== feed.id);
@@ -214,10 +200,8 @@ const CLOCK = { hour: 'numeric', minute: '2-digit' };
 const HOURS_KEY = 'ics-calendar-viewer.workingHours.v1';
 const endOfDay = time => (time === '00:00' ? '24:00' : time); // an end of 12 AM means midnight at the end of the day
 function loadWorkingHours() {
-  try {
-    const h = JSON.parse(localStorage.getItem(HOURS_KEY));
-    if (h && /^\d\d:\d\d$/.test(h.start) && /^\d\d:\d\d$/.test(h.end) && h.start !== h.end) return h;
-  } catch { /* Use the default when storage is blocked or the saved value is invalid. */ }
+  const h = store.json(HOURS_KEY, null);
+  if (h && /^\d\d:\d\d$/.test(h.start) && /^\d\d:\d\d$/.test(h.end) && h.start !== h.end) return h;
   return { start: '08:00', end: '18:00' };
 }
 let workingHours = loadWorkingHours();
@@ -256,7 +240,7 @@ const calendar = new FullCalendar.Calendar(calBox, {
   noEventsContent: () => searchQuery.trim() ? 'No events match your search in this date range.' : 'No events in this date range.',
   views: { timeGridWorkWeek: { type: 'timeGridWeek', weekends: false } },
   datesSet(arg) {
-    try { localStorage.setItem(VIEW_KEY, arg.view.type); } catch { }
+    store.set(VIEW_KEY, arg.view.type);
     if (arg.view.type.startsWith('timeGrid')) focusCurrentTime();
     showUpNext(arg.view.type === 'timeGridDay');
   },
@@ -574,7 +558,7 @@ hoursEnd.value = workingHours.end;
 function applyWorkingHours() {
   if (hoursStart.value && hoursEnd.value && hoursStart.value !== hoursEnd.value) {
     workingHours = { start: hoursStart.value, end: hoursEnd.value };
-    try { localStorage.setItem(HOURS_KEY, JSON.stringify(workingHours)); } catch { /* The change still applies for this visit. */ }
+    store.set(HOURS_KEY, JSON.stringify(workingHours)); // a failed save still applies for this visit
     calendar.setOption('businessHours', businessHours());
   } else {
     hoursStart.value = workingHours.start;
@@ -587,8 +571,7 @@ hoursEnd.onchange = applyWorkingHours;
 
 // ---- Alerts: persistence, editors, scheduler, delivery ----
 function saveAlertRules() {
-  try { localStorage.setItem(ALERT_RULES_KEY, JSON.stringify(alertRules)); }
-  catch (e) { setStatus('Could not save alert settings: ' + e.message); }
+  store.set(ALERT_RULES_KEY, JSON.stringify(alertRules), 'Could not save alert settings');
   scheduleAlertSync();
 }
 
@@ -637,7 +620,7 @@ function applyServerStatus(status) {
 }
 
 function saveFiredAlerts() {
-  try { localStorage.setItem(ALERT_FIRED_KEY, JSON.stringify(firedAlerts)); } catch { }
+  store.set(ALERT_FIRED_KEY, JSON.stringify(firedAlerts));
 }
 
 // Called after any rule edit. Alerts already past due are marked fired silently so editing never pops a burst of toasts.
@@ -753,7 +736,7 @@ const hideCancelledToggle = document.getElementById('hide-cancelled');
 hideCancelledToggle.checked = hideCancelled;
 hideCancelledToggle.onchange = () => {
   hideCancelled = hideCancelledToggle.checked;
-  try { localStorage.setItem(HIDE_CANCELLED_KEY, String(hideCancelled)); } catch { }
+  store.set(HIDE_CANCELLED_KEY, String(hideCancelled));
   calendar.refetchEvents();
 };
 muteAll.checked = alertRules.global.muted;
@@ -1231,12 +1214,10 @@ function configureAutoRefresh() {
     }, minutes * 60000);
   }
 }
-try {
-  const saved = localStorage.getItem(AUTO_REFRESH_KEY);
-  if ([...autoRefresh.options].some(option => option.value === saved)) autoRefresh.value = saved;
-} catch { /* Keep manual refresh available if storage is blocked. */ }
+const savedRefresh = store.get(AUTO_REFRESH_KEY);
+if ([...autoRefresh.options].some(option => option.value === savedRefresh)) autoRefresh.value = savedRefresh;
 autoRefresh.onchange = () => {
-  try { localStorage.setItem(AUTO_REFRESH_KEY, autoRefresh.value); } catch { }
+  store.set(AUTO_REFRESH_KEY, autoRefresh.value);
   configureAutoRefresh();
   updateSourceHealth();
 };
@@ -1248,13 +1229,11 @@ function applyTheme(choice) {
   document.querySelectorAll('[data-theme-choice]').forEach(button =>
     button.setAttribute('aria-pressed', String(button.dataset.themeChoice === (choice === 'light' || choice === 'dark' ? choice : 'system'))));
 }
-let savedTheme = 'system';
-try { savedTheme = localStorage.getItem(THEME_KEY) || 'system'; } catch { /* Follow the system theme if storage is blocked. */ }
-applyTheme(savedTheme);
+applyTheme(store.get(THEME_KEY) || 'system');
 document.querySelectorAll('[data-theme-choice]').forEach(button => {
   button.onclick = () => {
     const choice = button.dataset.themeChoice;
-    try { localStorage.setItem(THEME_KEY, choice); } catch { }
+    store.set(THEME_KEY, choice);
     applyTheme(choice);
   };
 });
@@ -1340,7 +1319,7 @@ function getBackupClientState() {
     feedPreferences: feedPreferenceSnapshots(),
     alertRules,
     preferences: {
-      theme: localStorage.getItem(THEME_KEY) || 'system', workingHours,
+      theme: store.get(THEME_KEY) || 'system', workingHours,
       autoRefreshMinutes: Number(autoRefresh.value), hideCancelled, view: calendar.view.type
     }
   };
