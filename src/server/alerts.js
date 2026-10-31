@@ -158,7 +158,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
 
   function start() {
     tick();
-    return setInterval(tick, TICK_MS);
+    setInterval(tick, TICK_MS);
   }
 
   async function snooze(reference) {

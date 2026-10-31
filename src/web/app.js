@@ -650,8 +650,7 @@ function renderEventAlerts() {
   const override = alertRules.events[key];
   const mode = override ? override.mode : 'default';
   document.querySelectorAll('input[name=alert-mode]').forEach(r => { r.checked = r.value === mode; r.disabled = cancelled; });
-  const defaults = calendarDefaultOffsets(alertRules, sourceKeys);
-  const effective = alertRules.global.muted ? [] : mode === 'muted' ? [] : mode === 'custom' ? override.offsets : defaults;
+  const effective = resolveOffsets(alertRules, key, sourceKeys);
   document.getElementById('alert-summary').textContent = cancelled ? 'Cancelled — alerts disabled' : alertRules.global.muted ? 'All alerts muted' :
     mode === 'muted' ? 'Muted' : effective.length ? effective.map(formatOffset).join(', ') : 'No alerts';
   const custom = document.getElementById('alert-custom');
