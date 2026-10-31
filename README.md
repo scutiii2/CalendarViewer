@@ -122,7 +122,7 @@ The interface follows your system's light/dark preference unless you pick Light 
 ## Privacy
 
 Calendar data stays on your machine. Remote feed links are saved in `data/feeds.json`, which the server creates as needed. Imported files, cached feed snapshots, and preferences are stored in your browser's local storage; use the same browser profile and address to retain them, because clearing site data removes them.
-The server listens only on `127.0.0.1`. This application does not edit the source calendars.
+The server listens only on `127.0.0.1` (the Docker image listens inside its container and refuses to start without `INTERNAL_API_TOKEN`). This application does not edit the source calendars.
 The [MCP endpoint](#mcp-server) returns event titles, locations and descriptions to any local program that calls it. Set `INTERNAL_API_TOKEN` to require a token.
 
 The app contacts only the calendar hosts you add (including redirects); opening a meeting or description link contacts its destination. All libraries are bundled locally: there is no CDN request and no telemetry.

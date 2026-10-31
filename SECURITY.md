@@ -6,6 +6,6 @@ Report vulnerabilities privately through GitHub private vulnerability reporting 
 
 ## Threat model
 
-The server listens on `127.0.0.1` only and is intended for one trusted local user, not network hosting or untrusted local users.
+The server listens on `127.0.0.1` only (the Docker image binds inside its container, publishes loopback only and requires `INTERNAL_API_TOKEN`) and is intended for one trusted local user, not network hosting or untrusted local users.
 Machine-changing actions require the local Host, an absent or local Origin, and the app's action header; these checks are not authentication for local processes.
 Feed URLs may contain secret tokens. Keep `data/` and browser storage private; adding a feed lets the server contact that URL and follow redirects.
