@@ -170,7 +170,7 @@ Then, on the server in `/media/ZimaOS-HD/Apps/CalendarViewer`, run `git pull` an
 
 In the container:
 
-- Armory reaches the MCP endpoint at `http://calendar:3000/mcp` with the same `X-Internal-Token` header as above. The web page is published on the server's loopback only (`CALENDAR_PORT`, default 3000).
+- Armory reaches the MCP endpoint at `http://calendar:3000/mcp` with the same `X-Internal-Token` header as above. The web page is published on the server's loopback only by default (`CALENDAR_PORT`, default 3000). To open it from the network, for example as a ZimaOS app link, set `CALENDAR_BIND_HOST=0.0.0.0` in `.env`; the page has no sign-in, so anyone on the network can read the calendars. Backup, restore and snooze buttons are refused unless the page is opened as `localhost` or `127.0.0.1`, so use an ssh tunnel for those.
 - Data lives in the `calendar_data` volume.
 - Windows notifications are not available, so alerts fire only in the browser.
 - `INTERNAL_API_TOKEN` is required: the server refuses a `CALENDAR_BIND` other than `127.0.0.1` without it. `CALENDAR_MCP_HOSTS` lists extra `Host` values accepted on `/mcp` (compose sets `calendar:3000`).
