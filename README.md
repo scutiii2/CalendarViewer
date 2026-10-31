@@ -59,7 +59,6 @@ After startup, press Enter to return to the menu, then choose Q. Closing the lau
 - Choose option 2 (or run `calendar.bat stop`) to stop this application's server.
 - Alternatively, run `node src/server/server.js` in a terminal and use Ctrl+C to stop it.
 
-If an older launcher started the server using a relative path, close that server manually once.
 The launchers deliberately avoid stopping processes they cannot identify as this application.
 
 ## Start automatically with Windows
@@ -79,8 +78,6 @@ calendar.bat startup-off
 
 You can also press Win+R, enter `shell:startup`, and delete only `ICS Calendar Viewer.lnk`.
 Disabling startup does not stop an already-running server; use option 2 for that.
-To disable startup and shut down the application completely, choose option 4, then option 2.
-You can enable startup again later with option 3.
 If you move the application folder, run the startup installer again from the new location.
 
 ## Use the calendar
@@ -95,8 +92,7 @@ If you move the application folder, run the startup installer again from the new
 - Overlapping timed meetings show an **Overlap** badge; open a meeting to see the conflicting titles. Cancelled events, all-day events, hidden calendars and back-to-back meetings do not count. Matching events are merged before checking overlaps.
 - Each linked calendar shows separate **Page** and **Alerts** refresh states with its last successful refresh time. Failed refreshes retain cached events and their original timestamps. Page data is marked stale after twice the selected auto-refresh interval (at least 10 minutes); background alert data after 10 minutes. **Not needed** means no alert offsets are configured. Imported calendars are labelled **Local file**.
 - Upcoming and ongoing events are green; finished events turn gray. Green is reserved for event status.
-- Refresh manually or select an auto-refresh interval: 1, 5, 10, 15, 30, or 60 minutes. Off disables automatic polling.
-- Auto-refresh, Refresh, and the update status are in the sync strip under the calendar toolbar. The selected interval is remembered between visits.
+- Refresh manually or select an auto-refresh interval (off, or every 1, 5, 10, 15, 30 or 60 minutes) in the sync strip under the calendar toolbar, which also shows the update status. The interval is remembered between visits.
 - **Working hours** in the sidebar shade the hours outside them, and weekends, in every view. A start later than the end (for example 22:00 to 06:00) is an overnight shift. The choice is remembered.
 - Day view shows an **Up next** list of the next three upcoming events in the coming 7 days, with a Join button for the first when it has a Teams link.
 
@@ -111,10 +107,10 @@ Get an in-app toast and a system notification a set time before an event starts.
 - Cancelled events never alert, including events with custom reminders. Their bell is muted and their reminder controls are disabled; saved rules are kept in case the event becomes active again.
 - In-app toasts stay until dismissed and include a Join button for Teams meetings. Windows notification banners disappear automatically after the normal short display duration controlled by your Windows settings; their actions remain available in Notification Center.
 - **Snooze 5 min** defers an upcoming reminder for five minutes, provided that ends before the meeting starts. In-app snooze requires the background server; failure leaves the original alert visible. The Windows Snooze button opens a small local confirmation tab that you can close. Both buttons use the same saved background queue, so snoozes survive a server restart. The server checks current event details, cancellation, calendar visibility and alert rules before sending again; a failed remote refresh keeps the snooze pending until fresh data arrives or the meeting starts.
-- **Windows notifications come from the background server**, so they appear even when the browser is closed. The page sends its alert settings and imported calendars to the server, which re-fetches feed links every 5 minutes and checks every 30 seconds. The Join button opens a Teams meeting link.
+- **Windows notifications come from the background server**, so they appear even when the browser is closed. The page sends its alert settings and imported calendars to the server, which re-fetches feed links every 5 minutes and checks every 30 seconds.
 - The server must be running: use `calendar.bat` (option 1 or 3). If the server is stopped, no alert fires; alerts that came due while it was stopped fire when it starts, if the event has not started.
 - If the server cannot show Windows notifications, or is not reachable, the page falls back to browser notifications (needs browser permission) while it is open.
-- The in-app toast still appears while the page is open. Windows Focus Assist / Do Not Disturb can hide Windows notifications.
+- Windows Focus Assist / Do Not Disturb can hide Windows notifications.
 - The first notification registers an app name "ICS Calendar Viewer" for your Windows account (`HKCU\Software\Classes\AppUserModelId`).
 - Alert settings are kept in browser local storage and copied to `data/alerts-state.json` (private, gitignored, excluded from ZIPs). `data/alerts-fired.json` remembers which alerts were sent.
 
@@ -123,13 +119,11 @@ The interface follows your system's light/dark preference unless you pick Light 
 
 ## Privacy
 
-Remote feed links are saved locally in `data/feeds.json`, which the server creates as needed.
-Imported files, cached feed snapshots, and the auto-refresh preference are stored in your browser's local storage.
-Use the same browser profile and address to retain that browser data; clearing site data removes it.
+Calendar data stays on your machine. Remote feed links are saved in `data/feeds.json`, which the server creates as needed. Imported files, cached feed snapshots, and preferences are stored in your browser's local storage; use the same browser profile and address to retain them, because clearing site data removes them.
 The server listens only on `127.0.0.1`. This application does not edit the source calendars.
 The [MCP endpoint](#mcp-server) returns event titles, locations and descriptions to any local program that calls it. Set `INTERNAL_API_TOKEN` to require a token.
 
-Calendar data stays on your machine, in `data/` and browser storage. The app contacts only the calendar hosts you add (including redirects); opening a meeting or description link contacts its destination. All libraries are bundled locally: there is no CDN request and no telemetry.
+The app contacts only the calendar hosts you add (including redirects); opening a meeting or description link contacts its destination. All libraries are bundled locally: there is no CDN request and no telemetry.
 
 ## Backup and restore
 
@@ -137,11 +131,8 @@ Open **Backup & restore** in the sidebar to export a local JSON backup. It inclu
 
 Choose **Restore backup** to validate a file and preview the calendar/rule counts before replacing your current configuration. Restore checks browser storage first and saves the previous configuration in `data/backup-recovery.json`. **Recovery backup** previews that saved configuration for restoring it. Failed writes roll back; if an interrupted connection prevents confirming recovery, synchronization pauses and the page explains how to recover. Wait for any active calendar refresh to finish before exporting or restoring.
 
-Backup files and recovery snapshots contain private calendar links and event contents. Keep them secure; they are not encrypted. Runtime recovery and snooze state stay inside the private `data/` folder and are excluded from distribution ZIPs.
-ICS links may contain secret access tokens. Keep `data/`, imported calendars and browser storage private; do not publish or share feed links.
-
-Treat the `data/` folder and calendar data as private. They are excluded from distribution ZIPs.
-Calendar sources and browser caches are not transferred by the ZIP packager.
+Backup files and recovery snapshots contain private calendar links and event contents. Keep them secure; they are not encrypted.
+ICS links may contain secret access tokens. Keep `data/`, imported calendars and browser storage private and do not share feed links. The `data/` folder (feeds, alert state, recovery and snooze files) is excluded from distribution ZIPs.
 
 ## MCP server
 
@@ -172,8 +163,7 @@ The archive is created at `dist/ics-calendar-viewer.zip` and includes the app, t
 Generated `.zip` files are excluded wherever they appear in the project, including the output archive itself.
 Git files, dependencies, build output, caches, local settings, secret files, the `data/` folder, and `.ics` files are excluded.
 The previous archive is replaced after packaging succeeds.
-Recipients should extract the ZIP before running the launchers and add their own calendars.
-Node.js and Python are not bundled; Python is needed only for packaging.
+Recipients should extract the ZIP before running the launchers and add their own calendars. Node.js is not bundled.
 
 ## Troubleshooting
 
