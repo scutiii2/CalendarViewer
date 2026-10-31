@@ -1,71 +1,49 @@
-"""Create a portable source ZIP using only Python's standard library."""
+#!/usr/bin/env python3
+"""Create a portable source ZIP from the files git tracks or would track.
+
+Uses `git ls-files`, so every .gitignore rule is honored. tools/ (maintainer
+scripts) and older zips are left out; .env.example is tracked, so it is
+included. Output: dist/<name>-<VERSION>.zip (dist/ is gitignored).
+"""
 
 import argparse
-import os
+import subprocess
+import sys
+import zipfile
 from pathlib import Path
-import tempfile
-from zipfile import ZIP_DEFLATED, ZipFile
+
+ROOT = Path(__file__).resolve().parent.parent
 
 
-EXCLUDED_DIRS = {
-    '.git', '.hg', '.svn', '.claude', '.codex', '.agents', '.idea', '.vscode',
-    '__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache',
-    '.cache', 'node_modules', '.venv', 'venv', 'dist', 'build',
-    'coverage', 'htmlcov', 'secrets', '.secrets', 'data', 'tools',
-}
-EXCLUDED_SUFFIXES = {'.pyc', '.pyo', '.log', '.tmp', '.temp', '.zip', '.ics', '.pem', '.key'}
-
-
-def excluded(name):
-    lower = name.lower()
-    if lower == '.env.example':
-        return False  # the template is meant to ship; real .env files never do
-    return (
-        lower in EXCLUDED_DIRS
-        or lower.startswith(('.git', '.env'))
-        or lower in {'.ds_store', 'thumbs.db', 'desktop.ini'}
-        or lower.endswith('~')
-        or Path(lower).suffix in EXCLUDED_SUFFIXES
+def included_files():
+    result = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+        cwd=ROOT, capture_output=True, text=True,
     )
-
-
-def create_zip(root, output):
-    root, output = Path(root).resolve(), Path(output).resolve()
-    output.parent.mkdir(parents=True, exist_ok=True)
-    count = 0
-    # Replace the previous archive only after the new one is complete.
-    fd, temporary = tempfile.mkstemp(prefix='calendar-package-', suffix='.tmp', dir=output.parent)
-    os.close(fd)
-    temporary = Path(temporary)
-    try:
-        with ZipFile(temporary, 'w', compression=ZIP_DEFLATED, compresslevel=9) as archive:
-            for directory, folders, files in os.walk(root, followlinks=False):
-                folders[:] = sorted(
-                    name for name in folders
-                    if not excluded(name) and not (Path(directory) / name).is_symlink()
-                )
-                for name in sorted(files):
-                    path = Path(directory) / name
-                    if excluded(name) or path.is_symlink() or path.resolve() in {output, temporary}:
-                        continue
-                    archive.write(path, Path(root.name) / path.relative_to(root))
-                    count += 1
-        temporary.replace(output)
-    finally:
-        temporary.unlink(missing_ok=True)
-    return count
+    if result.returncode != 0:
+        sys.exit(result.stderr)
+    return [
+        line for line in result.stdout.splitlines()
+        if line and not line.startswith("tools/") and not line.endswith(".zip")
+    ]
 
 
 def main():
-    root = Path(__file__).resolve().parent.parent
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     parser = argparse.ArgumentParser(description=__doc__)
-    version = (root / 'VERSION').read_text(encoding='utf-8').strip()
-    parser.add_argument('--output', type=Path, default=root / 'dist' / f'{root.name}-{version}.zip')
-    args = parser.parse_args()
-    count = create_zip(root, args.output)
-    print(f'Created {args.output.resolve()} ({count} files)')
-    print('Excluded Git files, dependencies, build output, caches, local settings, the data and tools folders, and ICS files.')
+    parser.add_argument("--output", type=Path, default=ROOT / "dist" / f"{ROOT.name}-{version}.zip")
+    output = parser.parse_args().output.resolve()
+    files = included_files()
+    if not files:
+        sys.exit("No files found to zip.")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+        for rel in files:
+            path = ROOT / rel
+            if path.is_file() and not path.is_symlink():
+                archive.write(path, Path(ROOT.name) / rel)
+    print(f"Created {output} ({len(files)} files)")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
