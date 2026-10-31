@@ -175,8 +175,14 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
     return reminders.schedule(occ);
   }
 
+  // Parsed sources for read-only consumers such as the MCP server; refreshes stale feeds (5-minute cache).
+  async function sources() {
+    await refreshFeeds(readFeeds());
+    return currentSources(readFeeds());
+  }
+
   return {
-    setState, status, start, tick, snooze,
+    setState, status, start, tick, snooze, sources,
     snoozeTicket: token => snooze(reminders.consumeTicket(token)),
     getState: () => JSON.parse(JSON.stringify(state)),
     invalidateFeeds: () => { feedGeneration++; feedCache.clear(); feedHealth.clear(); }

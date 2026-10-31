@@ -10,7 +10,7 @@ run.bat             one-click: start the server if needed, restart it after an u
 VERSION             application version, reported by the server at /api/version
 scripts/            calendar.ps1 (start, stop, startup, toast) and make_zip.py
 src/server/         server.js (entry point), alerts.js (background alerts), reminders.js (snoozes), backups.js,
-                    json-store.js (atomic JSON files), startup.js
+                    mcp.js (read-only MCP server), json-store.js (atomic JSON files), startup.js
 src/shared/         alert-logic.js and backup.js (page and server), storage.js and search.js (page only)
 src/web/            index.html, styles.css, app.js (the calendar page), backup-ui.js
 vendor/             FullCalendar, ical.js and third-party licences
@@ -141,6 +141,23 @@ ICS links may contain secret access tokens. Keep `data/`, imported calendars and
 
 Treat the `data/` folder and calendar data as private. They are excluded from distribution ZIPs.
 Calendar sources and browser caches are not transferred by the ZIP packager.
+
+## MCP server
+
+The same server exposes a read-only [MCP](https://modelcontextprotocol.io) endpoint at `http://127.0.0.1:3000/mcp` (streamable HTTP, POST only, no extra install). Tools, all marked `readOnlyHint`: `list_calendars`, `list_events` (date range and text search, overlaps marked), `get_event`, `up_next` and `conflicts`. It reads linked calendars (fetched with a 5-minute cache) and the imported files the page has synced for alerts, so open the calendar page once to make imported files visible. Cancelled events are left out.
+
+To bind it to Citadel's armory as an extension, add this to armory's `configs/config_extensions.json` and restart armory (start this server first):
+
+```json
+"calendar_viewer": {
+  "label": "Calendar Viewer",
+  "description": "Read-only view of your ICS calendars: events, overlaps and what is up next.",
+  "url": "http://127.0.0.1:3000/mcp",
+  "headers": { "X-Internal-Token": "${INTERNAL_API_TOKEN}" }
+}
+```
+
+If `INTERNAL_API_TOKEN` is set in this server's environment, `/mcp` requires that value in `X-Internal-Token`; unset, it accepts any local caller. Requests with an `Origin` header (browsers) or a foreign `Host` are always refused. A custom `PORT` changes the URL.
 
 ## Package the application
 

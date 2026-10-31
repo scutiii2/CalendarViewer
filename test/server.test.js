@@ -72,4 +72,15 @@ test('server serves the web files safely and guards the startup endpoint', async
   assert.equal((await request('POST', '/api/alerts/snooze', {}, '{}')).status, 403);
   assert.equal((await request('POST', '/api/alerts/snooze', headers, '{}')).status, 400);
   assert.equal((await request('GET', '/alerts/snooze/' + 'a'.repeat(48))).status, 400);
+
+  const rpc = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
+  const json = { 'Content-Type': 'application/json' };
+  assert.equal((await request('POST', '/mcp', { ...json, Host: 'evil.example:' + port }, rpc)).status, 403, 'mcp foreign host');
+  assert.equal((await request('POST', '/mcp', { ...json, Origin: 'http://localhost:' + port }, rpc)).status, 403, 'mcp browser origin');
+  assert.equal((await request('GET', '/mcp')).status, 405);
+  assert.equal((await request('POST', '/mcp', json, '{')).status, 400);
+  const listed = await request('POST', '/mcp', json, rpc);
+  assert.equal(listed.status, 200);
+  assert.equal(JSON.parse(listed.data).result.tools.length, 5);
+  assert.equal((await request('POST', '/mcp', json, JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }))).status, 202);
 });

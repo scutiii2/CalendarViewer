@@ -37,6 +37,7 @@ function staticFile(pathname) {
 const { createAlertService } = require('./alerts');
 const { createStartupService } = require('./startup');
 const { createBackupService } = require('./backups');
+const { createMcpHandler } = require('./mcp'); // after ./alerts, which defines the global ICAL
 
 const readFeeds = () => readJson(FEEDS_FILE, []);
 const writeFeeds = feeds => {
@@ -69,6 +70,8 @@ const alerts = createAlertService({
   firedFile: path.join(DATA_DIR, 'alerts-fired.json'),
   snoozeBaseUrl: `http://localhost:${PORT}`
 });
+const mcp = createMcpHandler({ sources: alerts.sources });
+const MCP_TOKEN = process.env.INTERNAL_API_TOKEN || ''; // Citadel's shared token; when set, /mcp callers must send it as X-Internal-Token
 const backups = createBackupService({ readFeeds, writeFeeds, alerts, recoveryFile: path.join(DATA_DIR, 'backup-recovery.json') });
 
 const startup = createStartupService();
@@ -87,6 +90,19 @@ http.createServer(async (req, res) => {
     if (req.method === 'GET') {
       const asset = staticFile(url.pathname);
       if (asset) return send(res, 200, fs.readFileSync(asset.file), asset.type);
+    }
+
+    // MCP clients are not browsers: refuse any request carrying an Origin, and foreign Host headers (DNS rebinding).
+    if (url.pathname === '/mcp') {
+      const given = String(req.headers['x-internal-token'] || '');
+      const tokenOk = !MCP_TOKEN || (given.length === MCP_TOKEN.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(MCP_TOKEN)));
+      if (!HOSTS.includes(req.headers.host) || req.headers.origin || !tokenOk) return send(res, 403, 'Forbidden');
+      if (req.method !== 'POST') return send(res, 405, 'Use POST');
+      let message;
+      try { message = JSON.parse(await readBody(req, 1e6)); }
+      catch { return sendJson(res, 400, { jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error.' } }); }
+      const reply = await mcp.handle(message);
+      return reply === null ? send(res, 202, '') : sendJson(res, 200, reply);
     }
 
     if (url.pathname === '/api/version' && req.method === 'GET') return sendJson(res, 200, { version: VERSION });
