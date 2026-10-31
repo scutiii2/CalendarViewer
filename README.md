@@ -186,7 +186,7 @@ In the container:
 ### Releasing
 
 1. Change the number in `VERSION` and commit.
-2. Run option **R**. It tags `vX.Y.Z` on `main` and `live-vX.Y.Z` on `live`, pushes both with the `live` branch, and refuses a version already released with different files. When the live files are unchanged it only tags the current `live` tip.
+2. Run option **R**. It tags `vX.Y.Z` on `main` and `live-vX.Y.Z` on `live`, pushes both with the `live` branch, and refuses a version already released with different files. When the live files are unchanged it only tags the current `live` tip. While a version is not officially released yet, `python tools/publish_live.py --release --replace` moves its two tags to the newest commits.
 3. Create the desktop ZIP with `python scripts/make_zip.py`.
 
 ## Package the application

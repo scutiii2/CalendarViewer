@@ -6,7 +6,8 @@ parent is the remote `live` tip, so the push is a normal fast-forward.
 
 A plain publish only updates `live` (use it for tests). --release also tags the
 source commit vX.Y.Z and the live commit live-vX.Y.Z, X.Y.Z being the VERSION file.
-A version already released with different live files is refused: bump VERSION.
+A version already released with different live files is refused: bump VERSION, or
+add --replace to move that version's tags while it is not officially released yet.
 
     python tools/publish_live.py              # publish main
     python tools/publish_live.py --release    # publish and tag a release
@@ -76,6 +77,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--source", default="main", help="ref to publish from (default: main)")
     parser.add_argument("--release", action="store_true", help="also tag the source vX.Y.Z and the live commit live-vX.Y.Z (X.Y.Z from VERSION)")
+    parser.add_argument("--replace", action="store_true", help="with --release: move the tags of an already tagged version (force-pushes the two tags)")
     parser.add_argument("--dry-run", action="store_true", help="build and report, push nothing")
     args = parser.parse_args()
 
@@ -91,9 +93,9 @@ def main() -> None:
         version = git("show", f"{source_sha}:VERSION").strip()
         source_tag, live_tag = f"v{version}", f"live-v{version}"
         released = git("ls-remote", "--tags", REMOTE, f"refs/tags/{live_tag}^{{}}").split()
-        if released and (changed or released[0] != parent):
+        if released and not args.replace and (changed or released[0] != parent):
             sys.exit(f"{live_tag} is already released with different files. Bump VERSION, commit, then release again.")
-        if released:
+        if released and not args.replace:
             print(f"{live_tag} is already released.")
             return
     if not changed and not args.release:
@@ -112,10 +114,10 @@ def main() -> None:
     commit = git("commit-tree", tree, *(["-p", parent] if parent else []), "-m", message) if changed else parent
     refs = [f"{commit}:refs/heads/{BRANCH}"] if changed else []
     if live_tag:
-        # -f moves a local tag that was never pushed; the remote check above guarantees this version is unreleased.
+        # -f and the + below move existing tags; the check above only lets that through with --replace.
         git("tag", "-f", "-a", source_tag, source_sha, "-m", source_tag)
         git("tag", "-f", "-a", live_tag, commit, "-m", live_tag)
-        refs += [f"+refs/tags/{source_tag}", f"refs/tags/{live_tag}"]
+        refs += [f"+refs/tags/{source_tag}", f"+refs/tags/{live_tag}"]
     git("push", REMOTE, *refs)
     print(f"pushed {commit[:8]} to {REMOTE}/{BRANCH}" + (f", tagged {source_tag} and {live_tag}" if live_tag else ""))
 
