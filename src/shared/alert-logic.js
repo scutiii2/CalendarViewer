@@ -7,8 +7,9 @@ const DELIVERY_WINDOW_MS = 120000;
 const DAY_MS = 86400000;
 const DEFAULT_SOURCE_COLOR = '#5b5fc7';
 const VIEWS = ['timeGridDay', 'timeGridWorkWeek', 'timeGridWeek', 'dayGridMonth', 'listWeek'];
-const eventSourceKeys = p => (p.sourceDetails || []).map(s => s.key).filter(Boolean);
+const eventSourceKeys = p => p.sourceDetails.map(s => s.key).filter(Boolean);
 const eventAlertKey = (uid, title) => uid || 'fb:' + title;
+const URL_PATTERN = /https?:\/\/[^\s<>"']+/gi;
 const isCancelledTitle = title => /^\s*cancell?ed\b/i.test(title);
 
 function visibleEvents(events, hideCancelled) {
@@ -227,7 +228,7 @@ function isTeamsMeeting(url) {
 }
 
 function findMeetingUrl(p) {
-  return [...[p.description, p.location].filter(Boolean).join(' ').matchAll(/https?:\/\/[^\s<>"']+/gi)]
+  return [...[p.description, p.location].filter(Boolean).join(' ').matchAll(URL_PATTERN)]
     .map(match => readableUrl(match[0])).find(isTeamsMeeting);
 }
 
@@ -242,7 +243,7 @@ function collectOccurrences(sources, now, horizonMs) {
         key: eventAlertKey(p.uid, e.title), title: e.title, start: e.start.getTime(), allDay: e.allDay,
         location: p.location, join: meeting && meeting.href,
         sourceKeys: eventSourceKeys(p),
-        sourceDetails: p.sourceDetails || []
+        sourceDetails: p.sourceDetails
       };
     });
 }
