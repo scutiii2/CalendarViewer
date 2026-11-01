@@ -21,7 +21,7 @@ echo   3  Both (publish, then push)
 echo   4  Preview publish ^(dry run^)
 echo   5  Preview push ^(dry run^)
 echo   6  Fix server folder permissions ^(chown helper^)
-echo   R  Release ^(publish to live, then tag VERSION^)
+echo   R  Release ^(publish to live, then tag: overwrite this version or go to the next^)
 echo   Q  Quit
 echo.
 choice /c 123456RQ /n /m "What do you want to do? "
@@ -33,7 +33,7 @@ if %PICK%==3 call :publish && call :push
 if %PICK%==4 call :publish --dry-run
 if %PICK%==5 call :push --dry-run
 if %PICK%==6 call :fixperms
-if %PICK%==7 call :publish --release
+if %PICK%==7 call :release
 goto menu
 
 rem :publish [--dry-run | --release]
@@ -42,6 +42,28 @@ py "%~dp0publish_live.py" %*
 if errorlevel 1 (echo Publish failed. & exit /b 1)
 if /i not "%~1"=="--dry-run" call :reminder "Code is on the live branch. On the server:" "git pull"
 exit /b 0
+
+rem :release
+rem Asks whether to overwrite the version in VERSION (moves its tags: only before its official GitHub release)
+rem or to bump to the next version first (commits VERSION on the current branch, then tags the new version).
+:release
+set /p VER=<"%ROOT%\VERSION"
+echo.
+echo Current version: %VER%
+echo   O  Overwrite v%VER% ^(move its tags to the newest commit^)
+echo   N  Next version ^(bump VERSION, commit, release the new one^)
+echo   C  Cancel
+choice /c ONC /n /m "Overwrite or next? "
+if %errorlevel%==3 exit /b 0
+if %errorlevel%==1 call :publish --release --replace & exit /b
+set "NEWVER="
+set /p NEWVER="New version (for example 1.0.1): "
+if not defined NEWVER (echo No version entered. & exit /b 1)
+>"%ROOT%\VERSION" echo !NEWVER!
+git -C "%ROOT%" commit -m "chore: bump version to !NEWVER!" -- VERSION
+if errorlevel 1 (echo Version commit failed. & >"%ROOT%\VERSION" echo %VER% & exit /b 1)
+call :publish --release
+exit /b
 
 rem :push [--dry-run]
 rem Packs every existing file into one tar stream and unpacks it over a single ssh connection,
