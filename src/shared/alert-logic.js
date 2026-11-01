@@ -5,6 +5,7 @@ const MAX_OFFSET_MIN = 60 * 24 * 30;
 const SNOOZE_MS = 5 * 60000;
 const DELIVERY_WINDOW_MS = 120000;
 const DAY_MS = 86400000;
+const WEEK_MS = 7 * DAY_MS;
 const DEFAULT_SOURCE_COLOR = '#5b5fc7';
 const VIEWS = ['timeGridDay', 'timeGridWorkWeek', 'timeGridWeek', 'dayGridMonth', 'listWeek'];
 const eventSourceKeys = p => p.sourceDetails.map(s => s.key).filter(Boolean);
@@ -232,9 +233,14 @@ function findMeetingUrl(p) {
     .map(match => readableUrl(match[0])).find(isTeamsMeeting);
 }
 
+// Events of the enabled sources between two dates, one entry per meeting even when several calendars hold it.
+function expandSources(sources, from, to) {
+  return deduplicateEvents(sources.filter(s => s.enabled).flatMap(s => expand(s, from, to)));
+}
+
 // Upcoming occurrences of enabled sources within the next horizonMs, ready for findDueAlerts.
 function collectOccurrences(sources, now, horizonMs) {
-  return deduplicateEvents(sources.filter(s => s.enabled).flatMap(s => expand(s, new Date(now), new Date(now + horizonMs))))
+  return expandSources(sources, new Date(now), new Date(now + horizonMs))
     .filter(e => e.start)
     .map(e => {
       const p = e.extendedProps;
@@ -248,7 +254,7 @@ function collectOccurrences(sources, now, horizonMs) {
     });
 }
 
-// The next events that have not started, soonest first, skipping cancelled ones (for the Day view "Up next" list).
+// The next events that have not started, soonest first, skipping cancelled ones.
 function pickUpNext(occurrences, now, limit = 3) {
   return occurrences
     .filter(o => o.start > now && !isCancelledTitle(o.title))
@@ -256,9 +262,14 @@ function pickUpNext(occurrences, now, limit = 3) {
     .slice(0, limit);
 }
 
+// "Up next" list (Day view rail and MCP): the next events within a week.
+function upNext(sources, now, limit = 3) {
+  return pickUpNext(collectOccurrences(sources, now, WEEK_MS), now, limit);
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
-    DAY_MS, pruneFired, MAX_OFFSET_MIN, SNOOZE_MS, DELIVERY_WINDOW_MS, DEFAULT_SOURCE_COLOR, VIEWS, normalizeOffsets, formatOffset, sanitizeRules, resolveOffsets,
+    DAY_MS, WEEK_MS, expandSources, upNext, pruneFired, MAX_OFFSET_MIN, SNOOZE_MS, DELIVERY_WINDOW_MS, DEFAULT_SOURCE_COLOR, VIEWS, normalizeOffsets, formatOffset, sanitizeRules, resolveOffsets,
     maxConfiguredOffset, findDueAlerts, alertBody, parseIcs, expand, deduplicateEvents,
     findMeetingUrl, collectOccurrences, pickUpNext,
     isCancelledTitle, visibleEvents, markConflicts, syncHealth

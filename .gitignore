@@ -2,7 +2,6 @@
 .*
 !.gitignore
 !.env.example
-!.dockerignore
 
 # App data and runtime state
 *.ics

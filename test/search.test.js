@@ -45,7 +45,7 @@ test('real calendar event pipeline honors calendar and cancellation filters befo
       { title: 'Planning', start, end, extendedProps: {} }, { title: 'Standup', start, end, extendedProps: {} },
       { title: 'Cancelled planning', start, end, extendedProps: {} }
     ] }, { enabled: false, events: [{ title: 'Hidden planning', start, end, extendedProps: {} }] }],
-    expand: source => source.events, deduplicateEvents, markConflicts, visibleEvents,
+    expandSources: list => deduplicateEvents(list.filter(s => s.enabled).flatMap(s => s.events)), markConflicts, visibleEvents,
     hideCancelled: true, searchQuery: 'planning', CalendarSearch: Search,
     updateSearchStatus: (matches, total) => { status = { matches, total }; }
   });

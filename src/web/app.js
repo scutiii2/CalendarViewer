@@ -288,7 +288,7 @@ const calendar = new FullCalendar.Calendar(calBox, {
   },
   events(info, ok, fail) {
     try {
-      const events = deduplicateEvents(sources.filter(s => s.enabled).flatMap(s => expand(s, info.start, info.end)));
+      const events = expandSources(sources, info.start, info.end);
       const eligible = markConflicts(visibleEvents(events, hideCancelled));
       const matches = eligible.filter(event => CalendarSearch.matches(event, searchQuery));
       updateSearchStatus(matches.length, eligible.length);
@@ -482,7 +482,7 @@ function renderUpNext() {
   if (upNext.hidden) return;
   const now = Date.now();
   let items = [];
-  try { items = pickUpNext(collectOccurrences(sources, now, 7 * DAY_MS), now, 3); } catch { /* Keep the rail empty if a calendar cannot be read. */ }
+  try { items = upNext(sources, now); } catch { /* Keep the rail empty if a calendar cannot be read. */ }
   upNext.replaceChildren();
   upNext.append(create('h2', '', 'Up next'));
   if (!items.length) {
