@@ -13,7 +13,7 @@ Dockerfile, docker-compose.yml, .env.example   the server image
 src/server/         server.js (entry point), alerts.js (background alerts), reminders.js (snoozes), backups.js,
                     mcp.js (read-only MCP server), json-store.js (atomic JSON files), startup.js, powershell.js
 src/shared/         alert-logic.js, backup.js and search.js (page and server), storage.js (page only)
-src/web/            index.html, styles.css, app.js (the calendar page), backup-ui.js
+src/web/            index.html, styles.css, app.js (the calendar page), backup-ui.js, theme-init.js (saved theme before first paint)
 vendor/             FullCalendar, ical.js and third-party licences
 test/               run with: node --test
 data/               your feeds and alert state (created at run time, private)
@@ -123,7 +123,7 @@ Calendar data stays on your machine. Remote feed links are saved in `data/feeds.
 The server listens only on `127.0.0.1` (the Docker image listens inside its container and refuses to start without `INTERNAL_API_TOKEN`). This application does not edit the source calendars.
 The [MCP endpoint](#mcp-server) returns event titles, locations and descriptions to any local program that calls it. Set `INTERNAL_API_TOKEN` to require a token.
 
-The app contacts only the calendar hosts you add (including redirects); opening a meeting or description link contacts its destination. All libraries are bundled locally: there is no CDN request and no telemetry.
+The app contacts only the calendar hosts you add (including redirects); opening a meeting or description link contacts its destination. All libraries are bundled locally: there is no CDN request and no telemetry. The server sends a Content Security Policy that allows only scripts and connections from its own origin.
 
 ## Backup and restore
 

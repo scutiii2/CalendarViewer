@@ -2,6 +2,9 @@
 .*
 !.gitignore
 !.env.example
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
 
 # App data and runtime state
 *.ics

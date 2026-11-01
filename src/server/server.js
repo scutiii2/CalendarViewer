@@ -45,8 +45,10 @@ const writeFeeds = feeds => {
   writeJsonAtomic(FEEDS_FILE, feeds, { space: 2 });
 };
 
+// Everything is served from this origin; inline styles stay allowed because FullCalendar injects a <style> element.
+const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
 const send = (res, code, body, type = 'text/plain; charset=utf-8') => {
-  res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' });
+  res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store', 'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' });
   res.end(body);
 };
 const sendJson = (res, code, obj) => send(res, code, JSON.stringify(obj), 'application/json');

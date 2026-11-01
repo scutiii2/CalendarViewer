@@ -36,7 +36,7 @@ const requester = port => (method, url, headers = {}, body) => new Promise((reso
   const req = http.request({ host: '127.0.0.1', port, path: url, method, headers }, res => {
     let data = '';
     res.on('data', c => { data += c; });
-    res.on('end', () => resolve({ status: res.statusCode, type: res.headers['content-type'], data }));
+    res.on('end', () => resolve({ status: res.statusCode, type: res.headers['content-type'], headers: res.headers, data }));
   });
   req.on('error', reject);
   req.end(body);
@@ -53,6 +53,11 @@ test('server serves the web files safely and guards the startup endpoint', async
     assert.equal(r.status, 200, url);
     assert.ok(r.type.startsWith(type), url);
   }
+  const page = await request('GET', '/');
+  assert.match(page.headers['content-security-policy'], /script-src 'self'/);
+  assert.equal(page.headers['x-content-type-options'], 'nosniff');
+  assert.doesNotMatch(page.data, /<script>/, 'inline scripts would be blocked by the CSP');
+  assert.equal((await request('GET', '/theme-init.js')).status, 200);
   for (const url of ['/shared/..%2f..%2fserver%2Fserver.js', '/..%2f..%2fREADME.md', '/missing.js', '/data/feeds.json', '/src/server/server.js']) {
     assert.equal((await request('GET', url)).status, 404, url);
   }
