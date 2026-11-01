@@ -3,7 +3,7 @@ rem Build dist\CalendarViewer-<VERSION>.zip, select it in Explorer, and open Git
 rem so the zip can be dragged onto it. Run it after the release is tagged (deploy.bat option R).
 setlocal
 for %%I in ("%~dp0..") do set "ROOT=%%~fI"
-py -3 "%ROOT%\scripts\make_zip.py" || python "%ROOT%\scripts\make_zip.py" || (echo ZIP creation failed. & pause & exit /b 1)
+py -3 "%ROOT%\tools\make_zip.py" || python "%ROOT%\tools\make_zip.py" || (echo ZIP creation failed. & pause & exit /b 1)
 set /p VER=<"%ROOT%\VERSION"
 start "" explorer /select,"%ROOT%\dist\CalendarViewer-%VER%.zip"
 start "" "https://github.com/scutiii2/CalendarViewer/releases/new?tag=v%VER%"

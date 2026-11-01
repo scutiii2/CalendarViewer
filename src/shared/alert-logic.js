@@ -270,7 +270,7 @@ function upNext(sources, now, limit = 3) {
 if (typeof module !== 'undefined') {
   module.exports = {
     DAY_MS, WEEK_MS, expandSources, upNext, pruneFired, MAX_OFFSET_MIN, SNOOZE_MS, DELIVERY_WINDOW_MS, DEFAULT_SOURCE_COLOR, VIEWS, normalizeOffsets, formatOffset, sanitizeRules, resolveOffsets,
-    maxConfiguredOffset, findDueAlerts, alertBody, parseIcs, expand, deduplicateEvents,
+    maxConfiguredOffset, findDueAlerts, alertBody, parseIcs, deduplicateEvents,
     findMeetingUrl, collectOccurrences, pickUpNext,
     isCancelledTitle, visibleEvents, markConflicts, syncHealth
   };

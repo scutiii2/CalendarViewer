@@ -5,11 +5,10 @@ A read-only calendar that combines ICS links and imported `.ics` files in a Team
 ## Project layout
 
 ```text
-calendar.bat        double-click launcher (menu), or: calendar.bat start|stop|startup-on|startup-off|zip
-run.bat             one-click: start the server if needed, restart it after an update, open the calendar
+run.bat             one-click: start the server if needed, restart it after an update, open the calendar; or: run.bat restart|stop|startup-on|startup-off
 VERSION             application version, reported by the server at /api/version
-scripts/            calendar.ps1 (start, stop, startup, toast) and make_zip.py
-tools/              deploy.bat (menu) and publish_live.py: put the app on the Zima server; make_zip.bat: ZIP for a GitHub release
+scripts/            calendar.ps1 (start, restart, stop, startup, toast)
+tools/              deploy.bat (menu) and publish_live.py: put the app on the Zima server; make_zip.bat and make_zip.py: ZIP for a GitHub release
 Dockerfile, docker-compose.yml, .env.example   the server image
 src/server/         server.js (entry point), alerts.js (background alerts), reminders.js (snoozes), backups.js,
                     mcp.js (read-only MCP server), json-store.js (atomic JSON files), startup.js, powershell.js
@@ -31,16 +30,15 @@ No dependency installation or build step is required.
 
 ## Launcher reference
 
-Keep the application folder together: `calendar.bat` and `run.bat` run `scripts\calendar.ps1`.
-Double-click `calendar.bat` for a menu; press Enter to choose the default, option 1.
+Keep the application folder together: `run.bat` runs `scripts\calendar.ps1`.
 
-| Menu option | Command | Action |
-| --- | --- | --- |
-| 1 | `calendar.bat start` | Start or restart the server and open the calendar in your browser. |
-| 2 | `calendar.bat stop` | Stop this application's background server. |
-| 3 | `calendar.bat startup-on` | Start the server automatically at Windows sign-in. Add `-Browser` to open the calendar too. |
-| 4 | `calendar.bat startup-off` | Turn off automatic startup for your Windows account. |
-| 5 | `calendar.bat zip` | Create a clean distribution ZIP using Python 3. |
+| Command | Action |
+| --- | --- |
+| `run.bat` | Start the server if needed (restart it after an update) and open the calendar. Add `-NoBrowser` to skip the browser. |
+| `run.bat restart` | Always restart the server and open the calendar. |
+| `run.bat stop` | Stop this application's background server. |
+| `run.bat startup-on` | Start the server automatically at Windows sign-in. Add `-Browser` to open the calendar too. |
+| `run.bat startup-off` | Turn off automatic startup for your Windows account. |
 
 ## Quick start with run.bat
 
@@ -54,33 +52,32 @@ To update, extract the new version over the application folder (keep `data/`), t
 
 ## Start, restart, and stop
 
-Extract the entire application into a permanent folder, then double-click `calendar.bat` and choose option 1.
-It starts the server in the background and opens <http://localhost:3000>.
-After startup, press Enter to return to the menu, then choose Q. Closing the launcher or the browser does not stop the server.
+Extract the entire application into a permanent folder, then double-click `run.bat`.
+It starts the server in the background and opens <http://localhost:3000>. Closing the launcher or the browser does not stop the server.
 
-- Choose option 1 again (or run `calendar.bat start`) to restart the server and reopen the calendar.
-- Choose option 2 (or run `calendar.bat stop`) to stop this application's server.
+- Run `run.bat restart` to restart the server and reopen the calendar.
+- Run `run.bat stop` to stop this application's server.
 - Alternatively, run `node src/server/server.js` in a terminal and use Ctrl+C to stop it.
 
-The launchers deliberately avoid stopping processes they cannot identify as this application.
+The launcher deliberately avoids stopping processes they cannot identify as this application.
 
 ## Start automatically with Windows
 
-Choose option 3 in `calendar.bat` (or run `calendar.bat startup-on -Browser` to also open the calendar at sign-in). It adds one shortcut to your account's Windows Startup folder.
+Run `run.bat startup-on` (add `-Browser` to also open the calendar at sign-in). It adds one shortcut to your account's Windows Startup folder.
 The server starts when you next sign in after booting Windows, and the calendar opens in your browser only with `-Browser`.
 It runs as your account, without administrator privileges; it does not run before sign-in.
 Running the installer again updates the same shortcut.
 
-You can also turn startup on or off from the calendar page with the **Start with Windows** checkbox in the sidebar. The checkbox starts only the server at sign-in and does not open a browser, which is enough for Windows alert notifications. It makes the same shortcut as option 3. The checkbox is available only when the page is served by this application's server on `localhost`.
+You can also turn startup on or off from the calendar page with the **Start with Windows** checkbox in the sidebar. The checkbox starts only the server at sign-in and does not open a browser, which is enough for Windows alert notifications. It makes the same shortcut as `run.bat startup-on`. The checkbox is available only when the page is served by this application's server on `localhost`.
 
-To disable automatic startup, choose option 4 in `calendar.bat`, or open a terminal in this folder and run:
+To disable automatic startup, open a terminal in this folder and run:
 
 ```bat
-calendar.bat startup-off
+run.bat startup-off
 ```
 
 You can also press Win+R, enter `shell:startup`, and delete only `ICS Calendar Viewer.lnk`.
-Disabling startup does not stop an already-running server; use option 2 for that.
+Disabling startup does not stop an already-running server; use `run.bat stop` for that.
 If you move the application folder, run the startup installer again from the new location.
 
 ## Use the calendar
@@ -111,7 +108,7 @@ Get an in-app toast and a system notification a set time before an event starts.
 - In-app toasts stay until dismissed and include a Join button for Teams meetings. Windows notification banners disappear automatically after the normal short display duration controlled by your Windows settings; their actions remain available in Notification Center.
 - **Snooze 5 min** defers an upcoming reminder for five minutes, provided that ends before the meeting starts. In-app snooze requires the background server; failure leaves the original alert visible. The Windows Snooze button opens a small local confirmation tab that you can close. Both buttons use the same saved background queue, so snoozes survive a server restart. The server checks current event details, cancellation, calendar visibility and alert rules before sending again; a failed remote refresh keeps the snooze pending until fresh data arrives or the meeting starts.
 - **Windows notifications come from the background server**, so they appear even when the browser is closed. The page sends its alert settings and imported calendars to the server, which re-fetches feed links every 5 minutes and checks every 30 seconds.
-- The server must be running: use `calendar.bat` (option 1 or 3). If the server is stopped, no alert fires; alerts that came due while it was stopped fire when it starts, if the event has not started.
+- The server must be running: use `run.bat` or `run.bat startup-on`. If the server is stopped, no alert fires; alerts that came due while it was stopped fire when it starts, if the event has not started.
 - If the server cannot show Windows notifications, or is not reachable, the page falls back to browser notifications (needs browser permission) while it is open.
 - Windows Focus Assist / Do Not Disturb can hide Windows notifications.
 - The first notification registers an app name "ICS Calendar Viewer" for your Windows account (`HKCU\Software\Classes\AppUserModelId`).
@@ -191,10 +188,10 @@ In the container:
 
 ## Package the application
 
-Choose option 5 in `calendar.bat`, double-click `tools\make_zip.bat`, or run:
+Double-click `tools\make_zip.bat`, or run:
 
 ```bat
-python scripts/make_zip.py
+python tools/make_zip.py
 ```
 
 The archive is created at `dist/CalendarViewer-<VERSION>.zip` (the number comes from `VERSION`) and includes everything outside the exclusions below: the app, launchers, `scripts/`, the Docker files, the tests, and this README.
@@ -207,7 +204,7 @@ Recipients should extract the ZIP before running the launchers and add their own
 - **Node.js not found:** install Node.js and reopen the launcher.
 - **Port already in use:** stop the previous calendar server or the other application using port 3000.
 - **Feed refresh fails:** confirm the server is running and the ICS link is accessible. Cached events remain available.
-- **Startup does not work:** check that the application folder has not moved and turn startup off and on again from `calendar.bat`.
+- **Startup does not work:** check that the application folder has not moved and turn startup off and on again with `run.bat startup-off` and `run.bat startup-on`.
 - **Armory cannot connect to the MCP server (401/403):** the URL must use `127.0.0.1:3000` or `localhost:3000` (your port if changed) and the `X-Internal-Token` header must match this server's `INTERNAL_API_TOKEN`. Start this server before armory.
 - **MCP tools miss an imported file:** open the calendar page once so it syncs imported files to the server.
 - **Custom port:** set the `PORT` environment variable before launching. Browser storage is separate for each port.

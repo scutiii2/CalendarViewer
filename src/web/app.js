@@ -195,7 +195,7 @@ function placeSyncStrip() {
   if (toolbar && toolbar.nextElementSibling !== syncStrip) toolbar.after(syncStrip);
 }
 const setSyncState = state => { syncStrip.dataset.state = state; };
-const upNext = document.getElementById('up-next');
+const upNextRail = document.getElementById('up-next');
 const calBox = document.getElementById('cal');
 const CLOCK = { hour: 'numeric', minute: '2-digit' };
 
@@ -456,7 +456,7 @@ document.getElementById('copy-link').onclick = async e => {
 
 // ---- Day view "Up next" rail (lives outside #cal, which FullCalendar owns) ----
 function showUpNext(show) {
-  upNext.hidden = !show;
+  upNextRail.hidden = !show;
   calBox.classList.toggle('show-rail', show);
   calendar.updateSize();
   positionUpNext();
@@ -465,28 +465,28 @@ function showUpNext(show) {
 
 function positionUpNext() {
   const harness = document.querySelector('#cal .fc-view-harness');
-  if (!harness || upNext.hidden || !upNext.offsetParent) return; // offsetParent is null while the rail is display:none (phones)
-  const main = upNext.offsetParent.getBoundingClientRect();
+  if (!harness || upNextRail.hidden || !upNextRail.offsetParent) return; // offsetParent is null while the rail is display:none (phones)
+  const main = upNextRail.offsetParent.getBoundingClientRect();
   const cal = calBox.getBoundingClientRect();
   const pad = parseFloat(getComputedStyle(calBox).paddingRight) || 0;
   const box = harness.getBoundingClientRect();
-  upNext.style.top = (box.top - main.top) + 'px';
-  upNext.style.height = box.height + 'px';
-  upNext.style.left = (cal.right - pad - upNext.offsetWidth - main.left) + 'px';
+  upNextRail.style.top = (box.top - main.top) + 'px';
+  upNextRail.style.height = box.height + 'px';
+  upNextRail.style.left = (cal.right - pad - upNextRail.offsetWidth - main.left) + 'px';
 }
 const railObserver = new ResizeObserver(positionUpNext);
 railObserver.observe(calBox);
 railObserver.observe(syncStrip);
 
 function renderUpNext() {
-  if (upNext.hidden) return;
+  if (upNextRail.hidden) return;
   const now = Date.now();
   let items = [];
   try { items = upNext(sources, now); } catch { /* Keep the rail empty if a calendar cannot be read. */ }
-  upNext.replaceChildren();
-  upNext.append(create('h2', '', 'Up next'));
+  upNextRail.replaceChildren();
+  upNextRail.append(create('h2', '', 'Up next'));
   if (!items.length) {
-    upNext.append(create('p', 'up-empty', 'Nothing in the next 7 days.'));
+    upNextRail.append(create('p', 'up-empty', 'Nothing in the next 7 days.'));
     return;
   }
   const clock = ms => new Date(ms).toLocaleTimeString([], CLOCK);
@@ -501,7 +501,7 @@ function renderUpNext() {
       : (i === 0 ? 'in ' + formatRemaining(o.start - now) + ' · ' : '') + day + clock(o.start));
     item.append(when);
     if (i === 0 && o.join) item.append(externalLink(o.join, 'Join', 'up-join'));
-    upNext.append(item);
+    upNextRail.append(item);
   });
 }
 
@@ -1079,7 +1079,7 @@ async function fetchFeeds() {
     sources.filter(s => s.feedId).forEach(s => { s.failed = true; s.fetching = false; });
     updateSourceHealth();
     setSyncState('error');
-    return setStatus('Server not running. Start it with calendar.bat. Link feeds are off.');
+    return setStatus('Server not running. Start it with run.bat. Link feeds are off.');
   }
   setStatus('Refreshing…');
   feeds.forEach(f => {

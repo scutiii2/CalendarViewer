@@ -1,10 +1,10 @@
-# ICS Calendar Viewer control script. calendar.bat starts it; run it directly with an action to skip the menu:
-#   calendar.ps1 start [-NoBrowser] | run [-NoBrowser] | stop | startup-on [-Browser] | startup-off | zip | toast
+# ICS Calendar Viewer control script. run.bat starts it; the default action is start:
+#   calendar.ps1 [start] [-NoBrowser] | restart [-NoBrowser] | stop | startup-on [-Browser] | startup-off | toast
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('menu', 'start', 'run', 'stop', 'startup-on', 'startup-off', 'zip', 'toast')]
-    [string]$Action = 'menu',
-    [switch]$NoBrowser,      # start: do not open the browser
+    [ValidateSet('start', 'restart', 'stop', 'startup-on', 'startup-off', 'toast')]
+    [string]$Action = 'start',
+    [switch]$NoBrowser,      # start, restart: do not open the browser
     [switch]$Browser,        # startup-on: also open the browser at sign-in
     [string]$Title,          # toast: base64 UTF-8 text (the server passes it this way so no quoting can break the call)
     [string]$Body = '',
@@ -31,7 +31,7 @@ function Get-CalendarServers {
     @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" | Where-Object { $_.CommandLine -match $serverPattern })
 }
 
-function Start-Calendar {
+function Restart-Calendar {
     $port = Get-CalendarPort
     $nodePath = (Get-Command node -ErrorAction Stop).Source
     $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue)
@@ -67,12 +67,12 @@ function Start-Calendar {
 }
 
 # run.bat: start the server if it is stopped, restart it if it is older than the files on disk, then open the calendar.
-function Invoke-Calendar {
+function Start-Calendar {
     $port = Get-CalendarPort
     $servers = Get-CalendarServers
     if (-not $servers.Count) {
         Write-Host 'Calendar server is not running. Starting it...'
-        Start-Calendar
+        Restart-Calendar
         return
     }
     $diskVersion = if (Test-Path (Join-Path $root 'VERSION')) { (Get-Content (Join-Path $root 'VERSION') -Raw).Trim() } else { 'unknown' }
@@ -84,7 +84,7 @@ function Invoke-Calendar {
     if ($runningVersion -ne $diskVersion -or $newest.LastWriteTime -gt $startedAt) {
         $was = if ($runningVersion) { $runningVersion } else { 'an older build' }
         Write-Host "Running server is $was, files on disk are $diskVersion. Restarting..."
-        Start-Calendar
+        Restart-Calendar
         return
     }
     Write-Host "Calendar server is running (version $runningVersion)."
@@ -141,14 +141,6 @@ function Disable-Startup {
     Write-Host 'Automatic startup disabled. The running server is unchanged.'
 }
 
-function New-Zip {
-    $script = Join-Path $PSScriptRoot 'make_zip.py'
-    if (Get-Command py -ErrorAction SilentlyContinue) { & py -3 $script }
-    elseif (Get-Command python -ErrorAction SilentlyContinue) { & python $script }
-    else { throw 'Python 3 was not found. Install Python 3, then try again.' }
-    if ($LASTEXITCODE -ne 0) { throw 'ZIP creation failed.' }
-}
-
 function Show-Toast {
     function Decode([string]$value) {
         if (-not $value) { return '' }
@@ -180,45 +172,13 @@ function Show-Toast {
     [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId).Show([Windows.UI.Notifications.ToastNotification]::new($doc))
 }
 
-function Show-Menu {
-    while ($true) {
-        Clear-Host
-        Write-Host 'ICS Calendar Viewer'
-        Write-Host ''
-        Write-Host '  1. Start or restart the server and open the calendar'
-        Write-Host '  2. Stop the server'
-        Write-Host '  3. Start the server automatically at Windows sign-in'
-        Write-Host '  4. Turn off automatic startup'
-        Write-Host '  5. Create a distribution ZIP'
-        Write-Host '  Q. Quit'
-        Write-Host ''
-        $choice = (Read-Host 'Choose an option [1]').Trim()
-        if (-not $choice) { $choice = '1' }
-        if ($choice -eq 'q') { return }
-        try {
-            switch ($choice) {
-                '1' { Start-Calendar }
-                '2' { Stop-Calendar }
-                '3' { Enable-Startup }
-                '4' { Disable-Startup }
-                '5' { New-Zip }
-                default { Write-Host 'Unknown option.' }
-            }
-        } catch { Write-Host $_.Exception.Message -ForegroundColor Red }
-        Write-Host ''
-        Read-Host 'Press Enter to continue' | Out-Null
-    }
-}
-
 try {
     switch ($Action) {
-        'menu' { Show-Menu }
+        'restart' { Restart-Calendar }
         'start' { Start-Calendar }
-        'run' { Invoke-Calendar }
         'stop' { Stop-Calendar }
         'startup-on' { Enable-Startup }
         'startup-off' { Disable-Startup }
-        'zip' { New-Zip }
         'toast' { Show-Toast }
     }
 } catch {
