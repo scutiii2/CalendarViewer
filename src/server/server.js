@@ -53,17 +53,39 @@ const send = (res, code, body, type = 'text/plain; charset=utf-8') => {
 };
 const sendJson = (res, code, obj) => send(res, code, JSON.stringify(obj), 'application/json');
 
+// Over the limit, stop collecting and fail with 413; the request is drained so the reply can still be sent.
 const readBody = (req, limit = 1e5) => new Promise((resolve, reject) => {
-  let data = '';
-  req.on('data', c => { data += c; if (data.length > limit) req.destroy(); });
-  req.on('end', () => resolve(data));
+  const chunks = [];
+  let size = 0, over = false;
+  req.on('data', c => {
+    if (over) return;
+    size += c.length;
+    if (size > limit) { over = true; req.resume(); return reject(Object.assign(new Error('Request body too large'), { status: 413 })); }
+    chunks.push(c);
+  });
+  req.on('end', () => resolve(Buffer.concat(chunks).toString()));
   req.on('error', reject);
 });
 
+const FEED_TIMEOUT_MS = Number(process.env.CALENDAR_FEED_TIMEOUT_MS) || 20000; // the override is for tests
+const FEED_MAX_BYTES = 10e6;
+
+// A hung or endless feed must not stall alert refreshes or MCP calls.
 async function fetchFeedText(feed) {
-  const r = await fetch(feed.url, { redirect: 'follow' });
+  let r;
+  try { r = await fetch(feed.url, { redirect: 'follow', signal: AbortSignal.timeout(FEED_TIMEOUT_MS) }); }
+  catch (e) { throw e.name === 'TimeoutError' ? new Error('Feed timed out') : e; }
   if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.text();
+  const chunks = [];
+  let size = 0;
+  try {
+    for await (const c of r.body) {
+      size += c.length;
+      if (size > FEED_MAX_BYTES) { r.body.cancel().catch(() => {}); throw new Error('Feed is larger than 10 MB'); }
+      chunks.push(c);
+    }
+  } catch (e) { throw e.name === 'TimeoutError' ? new Error('Feed timed out') : e; }
+  return Buffer.concat(chunks).toString();
 }
 
 const alerts = createAlertService({
@@ -121,13 +143,13 @@ http.createServer(async (req, res) => {
         if (url.pathname === '/api/backup/export' && req.method === 'POST') return sendJson(res, 200, backups.exportBackup(JSON.parse(await readBody(req, 42e6))));
         if (url.pathname === '/api/backup/restore' && req.method === 'POST') return sendJson(res, 200, backups.restoreBackup(JSON.parse(await readBody(req, 42e6))));
         if (url.pathname === '/api/backup/recovery' && req.method === 'GET') return sendJson(res, 200, backups.recoveryBackup());
-      } catch (e) { return send(res, 400, e.message); }
+      } catch (e) { return send(res, e.status || 400, e.message); }
     }
 
     if (url.pathname === '/api/alerts/snooze' && req.method === 'POST') {
       if (!isLocalAction(req)) return send(res, 403, 'Forbidden');
       try { return sendJson(res, 200, await alerts.snooze(JSON.parse(await readBody(req)))); }
-      catch (e) { return send(res, 400, e.message); }
+      catch (e) { return send(res, e.status || 400, e.message); }
     }
     const snoozeAction = url.pathname.match(/^\/alerts\/snooze\/([a-f0-9]{48})$/);
     if (snoozeAction && req.method === 'GET') {
@@ -136,7 +158,7 @@ http.createServer(async (req, res) => {
         await alerts.snoozeTicket(snoozeAction[1]);
         res.setHeader('Referrer-Policy', 'no-referrer');
         return send(res, 200, '<!doctype html><html lang="en"><meta charset="utf-8"><title>Reminder snoozed</title><h1>Reminder snoozed for 5 minutes</h1><p>You can close this tab. The background server will send the reminder.</p><a href="/">Open calendar</a></html>', 'text/html; charset=utf-8');
-      } catch (e) { return send(res, 400, e.message); }
+      } catch (e) { return send(res, e.status || 400, e.message); }
     }
 
     if (url.pathname === '/api/startup') {
@@ -185,7 +207,7 @@ http.createServer(async (req, res) => {
 
     send(res, 404, 'Not found');
   } catch (e) {
-    send(res, 500, e.message);
+    send(res, e.status || 500, e.message);
   }
 }).listen(PORT, BIND, () => {
   console.log(`ICS viewer: http://localhost:${PORT}`);

@@ -112,3 +112,29 @@ test('server refuses a non-loopback bind without a token and accepts configured 
   assert.equal(await status('calendar:3988'), 202);
   assert.equal(await status('evil.example:3988'), 403);
 });
+
+test('oversized request bodies get 413 and bad feeds fail fast', async t => {
+  const feeds = http.createServer((req, res) => {
+    if (req.url === '/hang') return res.writeHead(200).write('BEGIN:VCALENDAR\r\n'); // never ends
+    res.writeHead(200);
+    res.end(Buffer.alloc(11e6, 'a'));
+  });
+  await new Promise(resolve => feeds.listen(0, '127.0.0.1', resolve));
+  t.after(() => { feeds.closeAllConnections(); feeds.close(); });
+  const feedPort = feeds.address().port;
+
+  const port = 3989;
+  await startServer(t, { PORT: String(port), CALENDAR_FEED_TIMEOUT_MS: '300' });
+  const request = requester(port);
+  const json = { 'Content-Type': 'application/json' };
+
+  assert.equal((await request('POST', '/api/feeds', json, JSON.stringify({ name: 'x'.repeat(2e5), url: 'https://example.com/a.ics' }))).status, 413);
+
+  for (const [path, expected] of [['/hang', /timed out/], ['/big', /larger than 10 MB/]]) {
+    const added = await request('POST', '/api/feeds', json, JSON.stringify({ name: path, url: `http://127.0.0.1:${feedPort}${path}` }));
+    const { id } = JSON.parse(added.data);
+    const r = await request('GET', '/api/ics/' + id);
+    assert.equal(r.status, 502, path);
+    assert.match(r.data, expected, path);
+  }
+});
