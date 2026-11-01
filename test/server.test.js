@@ -71,6 +71,11 @@ test('server serves the web files safely and guards the startup endpoint', async
   assert.equal(version.status, 200);
   assert.equal(JSON.parse(version.data).version, fs.readFileSync(path.join(__dirname, '..', 'VERSION'), 'utf8').trim());
 
+  const health = await request('GET', '/api/health');
+  assert.equal(health.status, 200);
+  assert.equal(JSON.parse(health.data).ok, true);
+  assert.ok(Number.isFinite(JSON.parse(health.data).lastTickAgeMs));
+
   const body = JSON.stringify({ enabled: false });
   const post = headers => request('POST', '/api/startup', { 'Content-Type': 'application/json', ...headers }, body).then(r => r.status);
   assert.equal(await post({}), 403, 'missing header');
@@ -150,4 +155,32 @@ test('server exits cleanly on SIGTERM', { skip: process.platform === 'win32' }, 
   await new Promise(resolve => server.stdout.on('data', d => String(d).includes('ICS viewer') && resolve()));
   server.kill('SIGTERM');
   assert.equal(await new Promise(resolve => server.on('exit', resolve)), 0);
+});
+
+test('feed fetches follow redirects, and a network-facing server refuses private addresses', async t => {
+  const feeds = http.createServer((req, res) => {
+    if (req.url === '/old') return res.writeHead(302, { Location: '/new' }).end();
+    if (req.url === '/loop') return res.writeHead(302, { Location: '/loop' }).end();
+    res.writeHead(200).end('BEGIN:VCALENDAR END:VCALENDAR');
+  });
+  await new Promise(resolve => feeds.listen(0, '127.0.0.1', resolve));
+  t.after(() => feeds.close());
+  const feedUrl = p => `http://127.0.0.1:${feeds.address().port}${p}`;
+  const json = { 'Content-Type': 'application/json' };
+  const fetchVia = async (request, p) => {
+    const added = await request('POST', '/api/feeds', json, JSON.stringify({ name: p, url: feedUrl(p) }));
+    return request('GET', '/api/ics/' + JSON.parse(added.data).id);
+  };
+
+  await startServer(t, { PORT: '3985' });
+  const local = requester(3985);
+  assert.equal((await fetchVia(local, '/old')).status, 200, 'redirect followed');
+  const looped = await fetchVia(local, '/loop');
+  assert.equal(looped.status, 502);
+  assert.match(looped.data, /too many times/);
+
+  await startServer(t, { PORT: '3986', CALENDAR_BIND: '0.0.0.0', INTERNAL_API_TOKEN: 'secret' });
+  const exposed = await fetchVia(requester(3986), '/new');
+  assert.equal(exposed.status, 502);
+  assert.match(exposed.data, /private network/);
 });

@@ -33,6 +33,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
   const localCache = new Map(); // alertKey -> { text, events }
   let toastError = null;
   let running = null;
+  let lastTickAt = now(); // service creation counts, so a new server is healthy until its first tick is overdue
   let feedGeneration = 0;
 
   async function refreshFeeds(feeds) {
@@ -124,7 +125,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
       try {
         if (logic.maxConfiguredOffset(state.rules) || reminders.horizon()) await refreshFeeds(readFeeds());
         check(false);
-      } finally { running = null; }
+      } finally { running = null; lastTickAt = now(); }
     });
     return running;
   }
@@ -156,6 +157,12 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
     }))
   });
 
+  // Unhealthy when the alert loop has not finished a tick for 5 intervals (a stuck fetch or a dead timer).
+  const health = () => {
+    const lastTickAgeMs = now() - lastTickAt;
+    return { ok: lastTickAgeMs < 5 * TICK_MS, lastTickAgeMs };
+  };
+
   let timer;
   function start() {
     tick();
@@ -183,7 +190,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
   }
 
   return {
-    setState, status, start, stop, tick, snooze, sources,
+    setState, status, health, start, stop, tick, snooze, sources,
     snoozeTicket: token => snooze(reminders.consumeTicket(token)),
     getState: () => JSON.parse(JSON.stringify(state)),
     invalidateFeeds: () => { feedGeneration++; feedCache.clear(); feedHealth.clear(); }

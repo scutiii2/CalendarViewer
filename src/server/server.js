@@ -36,6 +36,7 @@ async function staticFile(pathname) {
   }
   return null;
 }
+const { assertPublicUrl } = require('./feed-guard');
 const { createAlertService } = require('./alerts');
 const { createStartupService } = require('./startup');
 const { createBackupService } = require('./backups');
@@ -79,11 +80,25 @@ const readBody = (req, limit = 1e5) => new Promise((resolve, reject) => {
 const FEED_TIMEOUT_MS = Number(process.env.CALENDAR_FEED_TIMEOUT_MS) || 20000; // the override is for tests
 const FEED_MAX_BYTES = 10e6;
 
-// A hung or endless feed must not stall alert refreshes or MCP calls.
+// Only a server reachable beyond this machine needs the guard; on 127.0.0.1 the user is the only one who can add feeds.
+const GUARD_PRIVATE = BIND !== '127.0.0.1' && process.env.CALENDAR_ALLOW_PRIVATE_FEEDS !== '1';
+const MAX_REDIRECTS = 5;
+
+// A hung or endless feed must not stall alert refreshes or MCP calls. Redirects are followed by hand so each hop can be checked.
 async function fetchFeedText(feed) {
-  let r;
-  try { r = await fetch(feed.url, { redirect: 'follow', signal: AbortSignal.timeout(FEED_TIMEOUT_MS) }); }
-  catch (e) { throw e.name === 'TimeoutError' ? new Error('Feed timed out') : e; }
+  const signal = AbortSignal.timeout(FEED_TIMEOUT_MS);
+  let r, link = feed.url;
+  try {
+    for (let hops = 0; ; hops++) {
+      if (GUARD_PRIVATE) await assertPublicUrl(link);
+      r = await fetch(link, { redirect: 'manual', signal });
+      const next = r.status >= 300 && r.status < 400 && r.headers.get('location');
+      if (!next) break;
+      if (hops >= MAX_REDIRECTS) throw new Error('Feed redirects too many times');
+      await r.body?.cancel();
+      link = new URL(next, link).href;
+    }
+  } catch (e) { throw e.name === 'TimeoutError' ? new Error('Feed timed out') : e; }
   if (!r.ok) throw new Error('HTTP ' + r.status);
   const chunks = [];
   let size = 0;
@@ -145,6 +160,10 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname === '/api/version' && req.method === 'GET') return sendJson(res, 200, { version: VERSION });
+    if (url.pathname === '/api/health' && req.method === 'GET') {
+      const health = alerts.health();
+      return sendJson(res, health.ok ? 200 : 503, { version: VERSION, ...health });
+    }
 
     if (url.pathname.startsWith('/api/backup/')) {
       if (!isLocalAction(req)) return send(res, 403, 'Forbidden');

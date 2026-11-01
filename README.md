@@ -178,6 +178,8 @@ In the container:
 - Armory reaches the MCP endpoint at `http://calendar:3000/mcp`, with the header shown in [MCP server](#mcp-server). `CALENDAR_MCP_HOSTS` lists extra `Host` values accepted on `/mcp`; compose sets `calendar:3000`.
 - The page has no sign-in. With `CALENDAR_BIND_HOST=0.0.0.0`, anyone on the network can read the calendars, so use it only on a network you trust. Backup, restore and snooze buttons are refused unless the page is opened as `localhost` or `127.0.0.1`, so use an ssh tunnel for those: `ssh -L 3000:127.0.0.1:3000 lex@scutiserver1.local`.
 - The server refuses any `CALENDAR_BIND` other than `127.0.0.1` without `INTERNAL_API_TOKEN`. The image sets it to `0.0.0.0` inside the container.
+- A server that is not bound to `127.0.0.1` refuses calendar links that point to private, loopback or link-local addresses (including through redirects), so someone on the network cannot use it to reach other machines. Set `CALENDAR_ALLOW_PRIVATE_FEEDS=1` to allow them. The check resolves the name before fetching, so it is not proof against a DNS answer that changes in between.
+- The container healthcheck calls `/api/health`, which returns 503 when the alert loop has not completed a check for 2.5 minutes.
 - Data lives in the `calendar_data` volume. Windows notifications are not available there, so alerts fire only in the browser.
 
 ### Releasing
