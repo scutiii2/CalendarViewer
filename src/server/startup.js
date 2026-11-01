@@ -1,4 +1,4 @@
-// Turns "start the server at Windows sign-in" on or off by running scripts/calendar.ps1, the same script calendar.bat uses.
+// Turns "start the server at Windows sign-in" on or off by running scripts/calendar.ps1, the same script run.bat uses.
 const fs = require('fs');
 const path = require('path');
 const { runCalendarScript } = require('./powershell');

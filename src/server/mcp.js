@@ -4,7 +4,7 @@ const logic = require('../shared/alert-logic.js');
 const Search = require('../shared/search.js');
 
 const PROTOCOLS = ['2025-06-18', '2025-03-26', '2024-11-05'];
-const { DAY_MS } = logic;
+const { DAY_MS, WEEK_MS } = logic;
 const MAX_SPAN_MS = 93 * DAY_MS;
 const MAX_EVENTS = 200;
 const text = value => ({ content: [{ type: 'text', text: JSON.stringify(value) }] });
@@ -26,14 +26,14 @@ const TOOLS = [
 ].map(tool => ({ ...tool, annotations: { readOnlyHint: true } }));
 
 function createMcpHandler({ sources, now = Date.now }) {
-  function range(args, defaultFrom = now(), defaultSpan = 7 * DAY_MS) {
+  function range(args, defaultFrom = now(), defaultSpan = WEEK_MS) {
     const start = args.start === undefined ? defaultFrom : Date.parse(args.start);
     const end = args.end === undefined ? start + defaultSpan : Date.parse(args.end);
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) fail('start and end must be ISO 8601 dates with end after start.');
     if (end - start > MAX_SPAN_MS) fail('The range may be at most 93 days.');
     return [new Date(start), new Date(end)];
   }
-  const merged = (list, from, to) => logic.markConflicts(logic.deduplicateEvents(list.filter(s => s.enabled).flatMap(s => logic.expand(s, from, to))))
+  const merged = (list, from, to) => logic.markConflicts(logic.expandSources(list, from, to))
     .sort((a, b) => a.start - b.start);
   const summary = e => {
     const p = e.extendedProps;
@@ -63,7 +63,7 @@ function createMcpHandler({ sources, now = Date.now }) {
       const limit = args.limit === undefined ? 3 : args.limit;
       if (!Number.isInteger(limit) || limit < 1 || limit > 20) fail('limit must be an integer from 1 to 20.');
       const t = now();
-      return logic.pickUpNext(logic.collectOccurrences(await sources(), t, 7 * DAY_MS), t, limit).map(o => ({
+      return logic.upNext(await sources(), t, limit).map(o => ({
         title: o.title, start: new Date(o.start).toISOString(), allDay: !!o.allDay, location: o.location || '',
         calendars: o.sourceDetails.map(s => s.name), meetingUrl: o.join || null
       }));

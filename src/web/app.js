@@ -170,7 +170,7 @@ function renderDetailText(element, text) {
   const value = String(text || '');
   element.replaceChildren();
   let offset = 0;
-  for (const match of value.matchAll(/https?:\/\/[^\s<>"']+/gi)) {
+  for (const match of value.matchAll(URL_PATTERN)) {
     element.append(document.createTextNode(value.slice(offset, match.index)));
     const url = readableUrl(match[0]);
     if (url) {
@@ -195,7 +195,7 @@ function placeSyncStrip() {
   if (toolbar && toolbar.nextElementSibling !== syncStrip) toolbar.after(syncStrip);
 }
 const setSyncState = state => { syncStrip.dataset.state = state; };
-const upNext = document.getElementById('up-next');
+const upNextRail = document.getElementById('up-next');
 const calBox = document.getElementById('cal');
 const CLOCK = { hour: 'numeric', minute: '2-digit' };
 
@@ -276,7 +276,7 @@ const calendar = new FullCalendar.Calendar(calBox, {
       card.classList.add('has-alert');
       card.append(bell);
     }
-    const memberships = arg.event.extendedProps.sourceDetails || [];
+    const memberships = arg.event.extendedProps.sourceDetails;
     if (memberships.length) {
       const dots = createSourceDots(memberships);
       dots.setAttribute('aria-label', memberships.map(s => s.name).join(', '));
@@ -288,7 +288,7 @@ const calendar = new FullCalendar.Calendar(calBox, {
   },
   events(info, ok, fail) {
     try {
-      const events = deduplicateEvents(sources.filter(s => s.enabled).flatMap(s => expand(s, info.start, info.end)));
+      const events = expandSources(sources, info.start, info.end);
       const eligible = markConflicts(visibleEvents(events, hideCancelled));
       const matches = eligible.filter(event => CalendarSearch.matches(event, searchQuery));
       updateSearchStatus(matches.length, eligible.length);
@@ -300,7 +300,7 @@ const calendar = new FullCalendar.Calendar(calBox, {
     document.getElementById('dt').textContent = event.title;
     const badges = document.getElementById('dm');
     badges.replaceChildren();
-    (p.sourceDetails || [{ name: p.source, color: event.backgroundColor }]).forEach(source => {
+    p.sourceDetails.forEach(source => {
       const badge = create('span', 'source-badge', source.name);
       badge.style.setProperty('--detail-color', source.color);
       badges.append(badge);
@@ -410,7 +410,7 @@ function agendaEventContent(arg) {
   const bell = createEventBell(event);
   if (bell) heading.append(bell);
   card.append(heading);
-  const details = [p.location, (p.sourceDetails || []).map(source => source.name).join(', ')].filter(Boolean);
+  const details = [p.location, p.sourceDetails.map(source => source.name).join(', ')].filter(Boolean);
   if (details.length) card.append(create('div', 'agenda-detail', details.join(' · ')));
   return { domNodes: [card] };
 }
@@ -456,7 +456,7 @@ document.getElementById('copy-link').onclick = async e => {
 
 // ---- Day view "Up next" rail (lives outside #cal, which FullCalendar owns) ----
 function showUpNext(show) {
-  upNext.hidden = !show;
+  upNextRail.hidden = !show;
   calBox.classList.toggle('show-rail', show);
   calendar.updateSize();
   positionUpNext();
@@ -465,34 +465,35 @@ function showUpNext(show) {
 
 function positionUpNext() {
   const harness = document.querySelector('#cal .fc-view-harness');
-  if (!harness || upNext.hidden || !upNext.offsetParent) return; // offsetParent is null while the rail is display:none (phones)
-  const main = upNext.offsetParent.getBoundingClientRect();
+  if (!harness || upNextRail.hidden || !upNextRail.offsetParent) return; // offsetParent is null while the rail is display:none (phones)
+  const main = upNextRail.offsetParent.getBoundingClientRect();
   const cal = calBox.getBoundingClientRect();
   const pad = parseFloat(getComputedStyle(calBox).paddingRight) || 0;
   const box = harness.getBoundingClientRect();
-  upNext.style.top = (box.top - main.top) + 'px';
-  upNext.style.height = box.height + 'px';
-  upNext.style.left = (cal.right - pad - upNext.offsetWidth - main.left) + 'px';
+  upNextRail.style.top = (box.top - main.top) + 'px';
+  upNextRail.style.height = box.height + 'px';
+  upNextRail.style.left = (cal.right - pad - upNextRail.offsetWidth - main.left) + 'px';
 }
-new ResizeObserver(positionUpNext).observe(calBox);
-new ResizeObserver(positionUpNext).observe(syncStrip);
+const railObserver = new ResizeObserver(positionUpNext);
+railObserver.observe(calBox);
+railObserver.observe(syncStrip);
 
 function renderUpNext() {
-  if (upNext.hidden) return;
+  if (upNextRail.hidden) return;
   const now = Date.now();
   let items = [];
-  try { items = pickUpNext(collectOccurrences(sources, now, 7 * DAY_MS), now, 3); } catch { /* Keep the rail empty if a calendar cannot be read. */ }
-  upNext.replaceChildren();
-  upNext.append(create('h2', '', 'Up next'));
+  try { items = upNext(sources, now); } catch { /* Keep the rail empty if a calendar cannot be read. */ }
+  upNextRail.replaceChildren();
+  upNextRail.append(create('h2', '', 'Up next'));
   if (!items.length) {
-    upNext.append(create('p', 'up-empty', 'Nothing in the next 7 days.'));
+    upNextRail.append(create('p', 'up-empty', 'Nothing in the next 7 days.'));
     return;
   }
   const clock = ms => new Date(ms).toLocaleTimeString([], CLOCK);
   items.forEach((o, i) => {
     const item = create('div', 'up-item');
     item.append(create('div', 'up-title', o.title));
-    item.append(createSourceDots(o.sourceDetails || []));
+    item.append(createSourceDots(o.sourceDetails));
     const bell = alertIndicator(o.key, o.sourceKeys, Infinity);
     if (bell) item.append(bell);
     const day = new Date(o.start).toDateString() === new Date(now).toDateString() ? '' : new Date(o.start).toLocaleDateString(undefined, { weekday: 'short' }) + ' ';
@@ -500,7 +501,7 @@ function renderUpNext() {
       : (i === 0 ? 'in ' + formatRemaining(o.start - now) + ' · ' : '') + day + clock(o.start));
     item.append(when);
     if (i === 0 && o.join) item.append(externalLink(o.join, 'Join', 'up-join'));
-    upNext.append(item);
+    upNextRail.append(item);
   });
 }
 
@@ -1078,7 +1079,7 @@ async function fetchFeeds() {
     sources.filter(s => s.feedId).forEach(s => { s.failed = true; s.fetching = false; });
     updateSourceHealth();
     setSyncState('error');
-    return setStatus('Server not running. Start it with calendar.bat. Link feeds are off.');
+    return setStatus('Server not running. Start it with run.bat. Link feeds are off.');
   }
   setStatus('Refreshing…');
   feeds.forEach(f => {
