@@ -182,8 +182,8 @@ In the container:
 
 ### Releasing
 
-1. Change the number in `VERSION` and commit.
-2. Run option **R**. It tags `vX.Y.Z` on `main` and `live-vX.Y.Z` on `live`, pushes both with the `live` branch, and refuses a version already released with different files. When the live files are unchanged it only tags the current `live` tip. While a version is not officially released yet, `python tools/publish_live.py --release --replace` moves its two tags to the newest commits.
+1. Run `tools\deploy.bat` and choose option **R**. It asks whether to **overwrite** the current version or go to the **next** one. Overwrite moves the current tags to the newest commits, so use it only before the version's official GitHub release. Next asks for a new number, commits it to `VERSION`, and releases that version.
+2. The release tags `vX.Y.Z` on `main` and `live-vX.Y.Z` on `live` and pushes both with the `live` branch. It refuses a version already released with different files, and when the live files are unchanged it only tags the current `live` tip. From a terminal, `python tools/publish_live.py --release` does the same, and `--replace` is the overwrite choice.
 3. Run `tools\make_zip.bat`. It builds the desktop ZIP, selects it in Explorer and opens GitHub's new-release page for the tag, where you drag the ZIP on and publish.
 
 ## Package the application
