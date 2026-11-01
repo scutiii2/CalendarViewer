@@ -24,14 +24,15 @@ const STATIC_ROOTS = [
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
 
 // Only files inside the three public folders are served; anything that escapes them is refused.
-function staticFile(pathname) {
+async function staticFile(pathname) {
   const wanted = pathname === '/' ? '/index.html' : pathname;
   for (const [prefix, dir] of STATIC_ROOTS) {
     if (!wanted.startsWith(prefix)) continue;
     const file = path.resolve(dir, decodeURIComponent(wanted.slice(prefix.length)));
     const type = TYPES[path.extname(file)];
-    if (type && file.startsWith(dir + path.sep) && fs.existsSync(file) && fs.statSync(file).isFile()) return { file, type };
-    return null;
+    if (!type || !file.startsWith(dir + path.sep)) return null;
+    const info = await fs.promises.stat(file).catch(() => null);
+    return info && info.isFile() ? { file, type, etag: `"${info.size.toString(16)}-${Math.floor(info.mtimeMs).toString(16)}"` } : null;
   }
   return null;
 }
@@ -47,9 +48,17 @@ const writeFeeds = feeds => {
 
 // Everything is served from this origin; inline styles stay allowed because FullCalendar injects a <style> element.
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
+const SECURITY_HEADERS = { 'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' };
 const send = (res, code, body, type = 'text/plain; charset=utf-8') => {
-  res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store', 'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' });
+  res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store', ...SECURITY_HEADERS });
   res.end(body);
+};
+// Files are revalidated on every load (no-cache), but an unchanged one costs a 304 instead of a re-download.
+const sendStatic = (req, res, { file, type, etag }) => {
+  const headers = { 'Cache-Control': 'no-cache', ETag: etag, ...SECURITY_HEADERS };
+  if (req.headers['if-none-match'] === etag) { res.writeHead(304, headers); return res.end(); }
+  res.writeHead(200, { 'Content-Type': type, ...headers });
+  fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
 };
 const sendJson = (res, code, obj) => send(res, code, JSON.stringify(obj), 'application/json');
 
@@ -114,12 +123,12 @@ const isLocalAction = req => {
     (!req.headers.origin || ORIGINS.includes(req.headers.origin));
 };
 
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
     if (req.method === 'GET') {
-      const asset = staticFile(url.pathname);
-      if (asset) return send(res, 200, fs.readFileSync(asset.file), asset.type);
+      const asset = await staticFile(url.pathname);
+      if (asset) return sendStatic(req, res, asset);
     }
 
     // MCP clients are not browsers: refuse any request carrying an Origin, and foreign Host headers (DNS rebinding).
@@ -209,7 +218,20 @@ http.createServer(async (req, res) => {
   } catch (e) {
     send(res, e.status || 500, e.message);
   }
-}).listen(PORT, BIND, () => {
+});
+
+server.listen(PORT, BIND, () => {
   console.log(`ICS viewer: http://localhost:${PORT}`);
   alerts.start();
 });
+
+// Docker stops with SIGTERM. Every state file is written atomically and synchronously, so nothing needs flushing:
+// stop the alert timer, finish in-flight requests, then exit.
+function shutdown() {
+  alerts.stop();
+  server.close(() => process.exit(0));
+  server.closeIdleConnections();
+  setTimeout(() => process.exit(0), 5000).unref();
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

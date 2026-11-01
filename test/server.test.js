@@ -58,6 +58,11 @@ test('server serves the web files safely and guards the startup endpoint', async
   assert.equal(page.headers['x-content-type-options'], 'nosniff');
   assert.doesNotMatch(page.data, /<script>/, 'inline scripts would be blocked by the CSP');
   assert.equal((await request('GET', '/theme-init.js')).status, 200);
+  const vendor = await request('GET', '/vendor/ical.min.js');
+  assert.ok(vendor.headers.etag && vendor.headers['cache-control'] === 'no-cache');
+  const again = await request('GET', '/vendor/ical.min.js', { 'If-None-Match': vendor.headers.etag });
+  assert.equal(again.status, 304);
+  assert.equal(again.data, '');
   for (const url of ['/shared/..%2f..%2fserver%2Fserver.js', '/..%2f..%2fREADME.md', '/missing.js', '/data/feeds.json', '/src/server/server.js']) {
     assert.equal((await request('GET', url)).status, 404, url);
   }
@@ -137,4 +142,12 @@ test('oversized request bodies get 413 and bad feeds fail fast', async t => {
     assert.equal(r.status, 502, path);
     assert.match(r.data, expected, path);
   }
+});
+
+// Windows cannot deliver SIGTERM to a handler (kill() ends the process at once); CI runs this on Linux.
+test('server exits cleanly on SIGTERM', { skip: process.platform === 'win32' }, async () => {
+  const server = spawn(process.execPath, [script], { env: { ...process.env, CALENDAR_DATA_DIR: tempData(), PORT: '3990' }, stdio: 'pipe' });
+  await new Promise(resolve => server.stdout.on('data', d => String(d).includes('ICS viewer') && resolve()));
+  server.kill('SIGTERM');
+  assert.equal(await new Promise(resolve => server.on('exit', resolve)), 0);
 });

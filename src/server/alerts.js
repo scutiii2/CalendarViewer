@@ -156,10 +156,12 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
     }))
   });
 
+  let timer;
   function start() {
     tick();
-    setInterval(tick, TICK_MS);
+    timer = setInterval(tick, TICK_MS);
   }
+  const stop = () => clearInterval(timer);
 
   async function snooze(reference) {
     if (!reference || typeof reference.key !== 'string' || !Number.isFinite(reference.start)) throw new Error('Invalid reminder.');
@@ -181,7 +183,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
   }
 
   return {
-    setState, status, start, tick, snooze, sources,
+    setState, status, start, stop, tick, snooze, sources,
     snoozeTicket: token => snooze(reminders.consumeTicket(token)),
     getState: () => JSON.parse(JSON.stringify(state)),
     invalidateFeeds: () => { feedGeneration++; feedCache.clear(); feedHealth.clear(); }
