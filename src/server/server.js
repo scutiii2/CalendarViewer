@@ -5,6 +5,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { writeJsonAtomic, readJson } = require('./json-store');
+const { send, sendJson, sendError, readBody } = require('./http');
+const { staticFile, sendStatic } = require('./static-files');
 const { assertPublicUrl } = require('./feed-guard');
 const { createAlertService } = require('./alerts'); // defines the global ICAL that ./mcp and the shared logic need
 const { createStartupService } = require('./startup');
@@ -22,60 +24,8 @@ const VERSION = (() => { try { return fs.readFileSync(path.join(ROOT, 'VERSION')
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const STATIC_ROOTS = [
-  ['/shared/', path.join(ROOT, 'src', 'shared')],
-  ['/vendor/', path.join(ROOT, 'vendor')],
-  ['/', path.join(ROOT, 'src', 'web')]
-];
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
-
-// Only files inside the three public folders are served; anything that escapes them is refused.
-async function staticFile(pathname) {
-  const wanted = pathname === '/' ? '/index.html' : pathname;
-  for (const [prefix, dir] of STATIC_ROOTS) {
-    if (!wanted.startsWith(prefix)) continue;
-    const file = path.resolve(dir, decodeURIComponent(wanted.slice(prefix.length)));
-    const type = TYPES[path.extname(file)];
-    if (!type || !file.startsWith(dir + path.sep)) return null;
-    const info = await fs.promises.stat(file).catch(() => null);
-    return info && info.isFile() ? { file, type, etag: `"${info.size.toString(16)}-${Math.floor(info.mtimeMs).toString(16)}"` } : null;
-  }
-  return null;
-}
-
 const readFeeds = () => readJson(FEEDS_FILE, []);
 const writeFeeds = feeds => writeJsonAtomic(FEEDS_FILE, feeds, { space: 2 });
-
-// Everything is served from this origin; inline styles stay allowed because FullCalendar injects a <style> element.
-const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
-const SECURITY_HEADERS = { 'Content-Security-Policy': CSP, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' };
-const send = (res, code, body, type = 'text/plain; charset=utf-8') => {
-  res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store', ...SECURITY_HEADERS });
-  res.end(body);
-};
-// Files are revalidated on every load (no-cache), but an unchanged one costs a 304 instead of a re-download.
-const sendStatic = (req, res, { file, type, etag }) => {
-  const headers = { 'Cache-Control': 'no-cache', ETag: etag, ...SECURITY_HEADERS };
-  if (req.headers['if-none-match'] === etag) { res.writeHead(304, headers); return res.end(); }
-  res.writeHead(200, { 'Content-Type': type, ...headers });
-  fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
-};
-const sendJson = (res, code, obj) => send(res, code, JSON.stringify(obj), 'application/json');
-const sendError = (res, e) => send(res, e.status || 400, e.message);
-
-// Over the limit, stop collecting and fail with 413; the request is drained so the reply can still be sent.
-const readBody = (req, limit = 1e5) => new Promise((resolve, reject) => {
-  const chunks = [];
-  let size = 0, over = false;
-  req.on('data', c => {
-    if (over) return;
-    size += c.length;
-    if (size > limit) { over = true; req.resume(); return reject(Object.assign(new Error('Request body too large'), { status: 413 })); }
-    chunks.push(c);
-  });
-  req.on('end', () => resolve(Buffer.concat(chunks).toString()));
-  req.on('error', reject);
-});
 
 const FEED_TIMEOUT_MS = Number(process.env.CALENDAR_FEED_TIMEOUT_MS) || 20000; // the override is for tests
 const FEED_MAX_BYTES = 10e6;

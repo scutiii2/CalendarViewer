@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-// Same URL-to-folder mapping as STATIC_ROOTS in src/server/static-files.js (server.js before Task 9).
+// Same URL-to-folder mapping as STATIC_ROOTS in src/server/static-files.js.
 const ROOTS = [['/shared/', path.join(ROOT, 'src', 'shared')], ['/vendor/', path.join(ROOT, 'vendor')], ['/', path.join(ROOT, 'src', 'web')]];
 const html = fs.readFileSync(path.join(ROOT, 'src', 'web', 'index.html'), 'utf8');
 const urls = pattern => [...html.matchAll(pattern)].map(m => m[1]);
