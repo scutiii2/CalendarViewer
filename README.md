@@ -197,7 +197,7 @@ python tools/make_zip.py
 ```
 
 The archive is created at `dist/CalendarViewer-<VERSION>.zip` (the number comes from `VERSION`) and includes everything outside the exclusions below: the app, launchers, `scripts/`, the Docker files, the tests, and this README.
-The archive holds the files git tracks or would track, so everything in `.gitignore` is left out (`.env`, `data/`, `.ics` files, caches, dependencies, build output, older ZIPs). The `.env.example` template is included; `tools/` (deploy and release tooling) is excluded. The `live` branch carries only the files listed under Publish above, so it has neither `tools/` nor any ZIP.
+The archive holds the files git tracks or would track, so everything in `.gitignore` is left out (`.env`, `data/`, `.ics` files, caches, dependencies, build output, older ZIPs). The `.env.example` template is included; `tools/` (deploy and release tooling) and `docs/` (design notes) are excluded. The `live` branch carries only the files listed under Publish above, so it has neither `tools/` nor any ZIP.
 An existing archive of the same version is overwritten.
 Recipients should extract the ZIP before running the launchers and add their own calendars. Node.js is not bundled.
 
