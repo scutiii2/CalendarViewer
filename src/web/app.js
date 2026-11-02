@@ -265,17 +265,12 @@ const calendar = new FullCalendar.Calendar(calBox, {
       if (!arg.event.allDay && arg.timeText) chip.append(create('span', 'mc-time', arg.timeText));
       chip.append(create('span', 'mc-title', arg.event.title));
       appendConflictBadge(chip, arg.event.extendedProps.conflicts);
-      const bell = createEventBell(arg.event);
-      if (bell) chip.append(bell);
+      appendEventBell(chip, arg.event);
       return { domNodes: [chip] };
     }
     const card = createEventCard(arg.event, arg.event.allDay ? 'all-day-card' : '');
     card.append(create('div', 'event-title', arg.event.title));
-    const bell = createEventBell(arg.event);
-    if (bell) {
-      card.classList.add('has-alert');
-      card.append(bell);
-    }
+    if (appendEventBell(card, arg.event)) card.classList.add('has-alert');
     const memberships = arg.event.extendedProps.sourceDetails;
     if (memberships.length) {
       const dots = createSourceDots(memberships);
@@ -396,9 +391,12 @@ function createSourceDots(details) {
   return dots;
 }
 
-function createEventBell(event) {
+// Appends the alert bell when the event shows one; returns whether it did.
+function appendEventBell(parent, event) {
   const p = event.extendedProps;
-  return alertIndicator(eventAlertKey(p.uid, event.title), eventSourceKeys(p), eventFinishTime(event), isCancelledTitle(event.title));
+  const bell = alertIndicator(eventAlertKey(p.uid, event.title), eventSourceKeys(p), eventFinishTime(event), isCancelledTitle(event.title));
+  if (bell) parent.append(bell);
+  return !!bell;
 }
 
 function agendaEventContent(arg) {
@@ -407,8 +405,7 @@ function agendaEventContent(arg) {
   const heading = create('div', 'agenda-heading');
   heading.append(create('span', 'event-title', event.title));
   appendConflictBadge(heading, p.conflicts);
-  const bell = createEventBell(event);
-  if (bell) heading.append(bell);
+  appendEventBell(heading, event);
   card.append(heading);
   const details = [p.location, p.sourceDetails.map(source => source.name).join(', ')].filter(Boolean);
   if (details.length) card.append(create('div', 'agenda-detail', details.join(' · ')));

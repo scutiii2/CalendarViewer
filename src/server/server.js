@@ -5,6 +5,12 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { writeJsonAtomic, readJson } = require('./json-store');
+const { assertPublicUrl } = require('./feed-guard');
+const { createAlertService } = require('./alerts'); // defines the global ICAL that ./mcp and the shared logic need
+const { createStartupService } = require('./startup');
+const { createBackupService } = require('./backups');
+const { createMcpHandler } = require('./mcp');
+const { normalizeFeedUrl } = require('../shared/alert-logic.js');
 
 const PORT = Number(process.env.PORT) || 3000;
 const BIND = process.env.CALENDAR_BIND || '127.0.0.1'; // 0.0.0.0 only inside the Docker image, where compose publishes loopback
@@ -36,17 +42,9 @@ async function staticFile(pathname) {
   }
   return null;
 }
-const { assertPublicUrl } = require('./feed-guard');
-const { normalizeFeedUrl } = require('../shared/alert-logic.js'); // needs the global ICAL only when parsing, so any order works
-const { createAlertService } = require('./alerts');
-const { createStartupService } = require('./startup');
-const { createBackupService } = require('./backups');
-const { createMcpHandler } = require('./mcp'); // after ./alerts, which defines the global ICAL
 
 const readFeeds = () => readJson(FEEDS_FILE, []);
-const writeFeeds = feeds => {
-  writeJsonAtomic(FEEDS_FILE, feeds, { space: 2 });
-};
+const writeFeeds = feeds => writeJsonAtomic(FEEDS_FILE, feeds, { space: 2 });
 
 // Everything is served from this origin; inline styles stay allowed because FullCalendar injects a <style> element.
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'";
@@ -63,6 +61,7 @@ const sendStatic = (req, res, { file, type, etag }) => {
   fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
 };
 const sendJson = (res, code, obj) => send(res, code, JSON.stringify(obj), 'application/json');
+const sendError = (res, e) => send(res, e.status || 400, e.message);
 
 // Over the limit, stop collecting and fail with 413; the request is drained so the reply can still be sent.
 const readBody = (req, limit = 1e5) => new Promise((resolve, reject) => {
@@ -138,6 +137,8 @@ const isLocalAction = req => {
   return req.headers['x-calendar-action'] === '1' && isLocalHost(req) &&
     (!req.headers.origin || ORIGINS.includes(req.headers.origin));
 };
+// Replies 403 and returns true when the request is not a local action from this page.
+const refuseUnlessLocalAction = (req, res) => !isLocalAction(req) && (send(res, 403, 'Forbidden'), true);
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
@@ -167,18 +168,18 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname.startsWith('/api/backup/')) {
-      if (!isLocalAction(req)) return send(res, 403, 'Forbidden');
+      if (refuseUnlessLocalAction(req, res)) return;
       try {
         if (url.pathname === '/api/backup/export' && req.method === 'POST') return sendJson(res, 200, backups.exportBackup(JSON.parse(await readBody(req, 42e6))));
         if (url.pathname === '/api/backup/restore' && req.method === 'POST') return sendJson(res, 200, backups.restoreBackup(JSON.parse(await readBody(req, 42e6))));
         if (url.pathname === '/api/backup/recovery' && req.method === 'GET') return sendJson(res, 200, backups.recoveryBackup());
-      } catch (e) { return send(res, e.status || 400, e.message); }
+      } catch (e) { return sendError(res, e); }
     }
 
     if (url.pathname === '/api/alerts/snooze' && req.method === 'POST') {
-      if (!isLocalAction(req)) return send(res, 403, 'Forbidden');
+      if (refuseUnlessLocalAction(req, res)) return;
       try { return sendJson(res, 200, await alerts.snooze(JSON.parse(await readBody(req)))); }
-      catch (e) { return send(res, e.status || 400, e.message); }
+      catch (e) { return sendError(res, e); }
     }
     const snoozeAction = url.pathname.match(/^\/alerts\/snooze\/([a-f0-9]{48})$/);
     if (snoozeAction && req.method === 'GET') {
@@ -187,13 +188,13 @@ const server = http.createServer(async (req, res) => {
         await alerts.snoozeTicket(snoozeAction[1]);
         res.setHeader('Referrer-Policy', 'no-referrer');
         return send(res, 200, '<!doctype html><html lang="en"><meta charset="utf-8"><title>Reminder snoozed</title><h1>Reminder snoozed for 5 minutes</h1><p>You can close this tab. The background server will send the reminder.</p><a href="/">Open calendar</a></html>', 'text/html; charset=utf-8');
-      } catch (e) { return send(res, e.status || 400, e.message); }
+      } catch (e) { return sendError(res, e); }
     }
 
     if (url.pathname === '/api/startup') {
       if (req.method === 'GET') return sendJson(res, 200, startup.status());
       if (req.method === 'POST') {
-        if (!isLocalAction(req)) return send(res, 403, 'Forbidden');
+        if (refuseUnlessLocalAction(req, res)) return;
         const { enabled } = JSON.parse(await readBody(req));
         return sendJson(res, 200, await startup.set(!!enabled));
       }
