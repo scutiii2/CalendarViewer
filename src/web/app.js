@@ -748,7 +748,6 @@ startupToggle.onchange = async () => {
   }
   startupToggle.disabled = false;
 };
-loadStartup();
 
 // -- Scheduler --
 function runAlertCheck(silent) {
@@ -1183,6 +1182,7 @@ calendar.refetchEvents();
 refreshServerStatus().then(() => { runAlertCheck(false); scheduleAlertSync(); });
 setInterval(refreshServerStatus, 30000);
 loadFeeds();
+loadStartup();
 
 // ---- Add card ----
 const addToggle = document.getElementById('add-toggle');
