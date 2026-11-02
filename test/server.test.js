@@ -55,6 +55,7 @@ test('server serves the web files safely and guards the startup endpoint', async
   }
   const page = await request('GET', '/');
   assert.match(page.headers['content-security-policy'], /script-src 'self'/);
+  assert.match(page.headers['content-security-policy'], /font-src 'self' data:/, 'FullCalendar embeds its icon font as a data: URL');
   assert.equal(page.headers['x-content-type-options'], 'nosniff');
   assert.doesNotMatch(page.data, /<script>/, 'inline scripts would be blocked by the CSP');
   assert.equal((await request('GET', '/js/theme-init.js')).status, 200);
