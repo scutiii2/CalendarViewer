@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const code = fs.readFileSync(path.join(__dirname, '../src/web/backup-ui.js'), 'utf8');
+const code = fs.readFileSync(path.join(__dirname, '../src/web/js/backup-ui.js'), 'utf8');
 
 function setup({ rollbackFails = false, storageFails = false, restoreFails = true } = {}) {
   const elements = new Map();

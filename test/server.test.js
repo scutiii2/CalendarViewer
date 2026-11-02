@@ -48,7 +48,7 @@ test('server serves the web files safely and guards the startup endpoint', async
   await startServer(t, { PORT: String(port) });
   const request = requester(port);
 
-  for (const [url, type] of [['/', 'text/html'], ['/styles.css', 'text/css'], ['/app.js', 'text/javascript'], ['/backup-ui.js', 'text/javascript'], ['/shared/alert-logic.js', 'text/javascript'], ['/shared/search.js', 'text/javascript'], ['/shared/backup.js', 'text/javascript'], ['/shared/storage.js', 'text/javascript'], ['/vendor/ical.min.js', 'text/javascript']]) {
+  for (const [url, type] of [['/', 'text/html'], ['/css/styles.css', 'text/css'], ['/js/app.js', 'text/javascript'], ['/js/backup-ui.js', 'text/javascript'], ['/shared/alert-logic.js', 'text/javascript'], ['/shared/search.js', 'text/javascript'], ['/shared/backup.js', 'text/javascript'], ['/shared/storage.js', 'text/javascript'], ['/vendor/ical.min.js', 'text/javascript']]) {
     const r = await request('GET', url);
     assert.equal(r.status, 200, url);
     assert.ok(r.type.startsWith(type), url);
@@ -57,7 +57,8 @@ test('server serves the web files safely and guards the startup endpoint', async
   assert.match(page.headers['content-security-policy'], /script-src 'self'/);
   assert.equal(page.headers['x-content-type-options'], 'nosniff');
   assert.doesNotMatch(page.data, /<script>/, 'inline scripts would be blocked by the CSP');
-  assert.equal((await request('GET', '/theme-init.js')).status, 200);
+  assert.equal((await request('GET', '/js/theme-init.js')).status, 200);
+  assert.equal((await request('GET', '/css/styles.css')).status, 200);
   const vendor = await request('GET', '/vendor/ical.min.js');
   assert.ok(vendor.headers.etag && vendor.headers['cache-control'] === 'no-cache');
   const again = await request('GET', '/vendor/ical.min.js', { 'If-None-Match': vendor.headers.etag });

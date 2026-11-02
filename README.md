@@ -13,7 +13,7 @@ Dockerfile, docker-compose.yml, .env.example   the server image
 src/server/         server.js (entry point), alerts.js (background alerts), reminders.js (snoozes), backups.js,
                     mcp.js (read-only MCP server), json-store.js (atomic JSON files), startup.js, powershell.js
 src/shared/         alert-logic.js, backup.js and search.js (page and server), storage.js (page only)
-src/web/            index.html, styles.css, app.js (the calendar page), backup-ui.js, theme-init.js (saved theme before first paint)
+src/web/            index.html, css/styles.css, js/ (the calendar page: app.js, backup-ui.js, theme-init.js)
 vendor/             FullCalendar, ical.js and third-party licences
 test/               run with: node --test
 data/               your feeds and alert state (created at run time, private)
