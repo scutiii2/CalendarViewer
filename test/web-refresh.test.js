@@ -5,8 +5,8 @@ const vm = require('node:vm');
 const path = require('node:path');
 
 // Execute the real page refresh functions with controlled HTTP and rendering boundaries.
-const app = fs.readFileSync(path.join(__dirname, '../src/web/js/app.js'), 'utf8');
-const functionCode = (start, end) => app.slice(app.indexOf(start), app.indexOf(end, app.indexOf(start)));
+const app = fs.readFileSync(path.join(__dirname, '../src/web/js/feeds.js'), 'utf8');
+const functionCode = (start, end) => app.slice(app.indexOf(start), end === undefined ? undefined : app.indexOf(end, app.indexOf(start)));
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
 
 test('a completed feed updates immediately even while another feed is still loading', async () => {
@@ -21,7 +21,7 @@ test('a completed feed updates immediately even while another feed is still load
     renderSources() {}, calendar: { refetchEvents() {} }, runAlertCheck() {}, scheduleAlertSync() {},
     cacheFeedSnapshot() {}, readFeedCache: () => [], writeFeedCache() {}, setSyncState() {}, setStatus() {}, CLOCK: {}
   });
-  vm.runInContext(functionCode('async function fetchFeeds()', '\ndocument.getElementById(\'refresh\')'), context);
+  vm.runInContext(functionCode('async function fetchFeeds()'), context);
   const done = context.fetchFeeds();
   // Drain the finite chain of immediately resolved HTTP and parse promises.
   await new Promise(resolve => setImmediate(resolve));
