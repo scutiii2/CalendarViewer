@@ -48,7 +48,7 @@ test('server serves the web files safely and guards the startup endpoint', async
   await startServer(t, { PORT: String(port) });
   const request = requester(port);
 
-  for (const [url, type] of [['/', 'text/html'], ['/css/styles.css', 'text/css'], ['/js/app.js', 'text/javascript'], ['/js/backup-ui.js', 'text/javascript'], ['/shared/alert-logic.js', 'text/javascript'], ['/shared/search.js', 'text/javascript'], ['/shared/backup.js', 'text/javascript'], ['/shared/storage.js', 'text/javascript'], ['/vendor/ical.min.js', 'text/javascript']]) {
+  for (const [url, type] of [['/', 'text/html'], ['/css/styles.css', 'text/css'], ['/js/main.js', 'text/javascript'], ['/js/backup-ui.js', 'text/javascript'], ['/shared/alert-logic.js', 'text/javascript'], ['/shared/search.js', 'text/javascript'], ['/shared/backup.js', 'text/javascript'], ['/shared/storage.js', 'text/javascript'], ['/vendor/ical.min.js', 'text/javascript']]) {
     const r = await request('GET', url);
     assert.equal(r.status, 200, url);
     assert.ok(r.type.startsWith(type), url);
