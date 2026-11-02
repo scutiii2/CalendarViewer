@@ -1,7 +1,7 @@
 // The same strict allowlist runs before preview in the browser and before any server writes.
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('../../vendor/ical.min.js'), require('./alert-logic.js'));
-  else root.CalendarBackup = factory(root.ICAL, { sanitizeRules, MAX_OFFSET_MIN, VIEWS });
+  else root.CalendarBackup = factory(root.ICAL, { sanitizeRules, normalizeFeedUrl, MAX_OFFSET_MIN, VIEWS });
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (ICAL, logic) {
   'use strict';
   const MAX_BYTES = 20 * 1024 * 1024;
@@ -38,7 +38,7 @@
     const feeds = unique(array(raw.feeds,'feeds').map(f => {
       object(f,'feed'); let url; try { url = new URL(f.url); } catch { fail('feed URL'); }
       if (!['http:','https:','webcal:'].includes(url.protocol) || !url.hostname || typeof f.url !== 'string' || f.url.length > 16000) fail('feed URL');
-      return {id:id(f.id),name:str(f.name,'feed name'),color:color(f.color),url:f.url.replace(/^webcal:/i, 'https:')};
+      return {id:id(f.id),name:str(f.name,'feed name'),color:color(f.color),url:logic.normalizeFeedUrl(f.url)};
     }), 'id');
     const localSources = unique(array(raw.localSources,'localSources').map(s => {
       object(s,'local source'); str(s.alertKey,'local key',202); if (!/^l:[\w-]+$/.test(s.alertKey)) fail('local key');

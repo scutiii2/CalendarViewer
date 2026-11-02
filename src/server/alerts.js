@@ -33,6 +33,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
   const localCache = new Map(); // alertKey -> { text, events }
   let toastError = null;
   let running = null;
+  let lastTickAt = now(); // service creation counts, so a new server is healthy until its first tick is overdue
   let feedGeneration = 0;
 
   async function refreshFeeds(feeds) {
@@ -124,7 +125,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
       try {
         if (logic.maxConfiguredOffset(state.rules) || reminders.horizon()) await refreshFeeds(readFeeds());
         check(false);
-      } finally { running = null; }
+      } finally { running = null; lastTickAt = now(); }
     });
     return running;
   }
@@ -156,10 +157,18 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
     }))
   });
 
+  // Unhealthy when the alert loop has not finished a tick for 5 intervals (a stuck fetch or a dead timer).
+  const health = () => {
+    const lastTickAgeMs = now() - lastTickAt;
+    return { ok: lastTickAgeMs < 5 * TICK_MS, lastTickAgeMs };
+  };
+
+  let timer;
   function start() {
     tick();
-    setInterval(tick, TICK_MS);
+    timer = setInterval(tick, TICK_MS);
   }
+  const stop = () => clearInterval(timer);
 
   async function snooze(reference) {
     if (!reference || typeof reference.key !== 'string' || !Number.isFinite(reference.start)) throw new Error('Invalid reminder.');
@@ -168,7 +177,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
     if (horizon <= 0 || horizon > logic.MAX_OFFSET_MIN * 60000) throw new Error('This event is no longer upcoming.');
     const occ = logic.collectOccurrences(currentSources(readFeeds()), now(), horizon)
       .find(o => o.key === reference.key && o.start === reference.start);
-    if (!occ || logic.isCancelledTitle(occ.title) || !logic.resolveOffsets(state.rules, occ.key, occ.sourceKeys).length) {
+    if (!occ || !logic.isAlertable(state.rules, occ)) {
       throw new Error('This reminder is cancelled or inactive.');
     }
     return reminders.schedule(occ);
@@ -181,7 +190,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
   }
 
   return {
-    setState, status, start, tick, snooze, sources,
+    setState, status, health, start, stop, tick, snooze, sources,
     snoozeTicket: token => snooze(reminders.consumeTicket(token)),
     getState: () => JSON.parse(JSON.stringify(state)),
     invalidateFeeds: () => { feedGeneration++; feedCache.clear(); feedHealth.clear(); }

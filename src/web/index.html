@@ -4,15 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ICS Calendar Viewer</title>
-<script>try { var t = localStorage.getItem('calendar-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t; } catch (e) { }</script>
+<script src="/js/theme-init.js"></script>
 <script src="/vendor/ical.min.js"></script>
 <script src="/vendor/fullcalendar.min.js"></script>
 <script src="/shared/alert-logic.js"></script>
 <script src="/shared/search.js"></script>
 <script src="/shared/backup.js"></script>
 <script src="/shared/storage.js"></script>
-<script src="/backup-ui.js"></script>
-<link rel="stylesheet" href="/styles.css">
+<script src="/js/backup-ui.js"></script>
+<link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
 <div class="unsupported" role="alert">
@@ -125,6 +125,26 @@
   <div class="backup-actions"><button id="backup-restore" type="button" class="primary" disabled>Replace with backup</button><button id="backup-cancel" type="button">Cancel</button></div>
 </div></dialog>
 
-<script src="/app.js"></script>
+<script src="/js/core.js"></script>
+<script src="/js/state.js"></script>
+<script src="/js/sources-store.js"></script>
+<script src="/js/event-format.js"></script>
+<script src="/js/event-cards.js"></script>
+<script src="/js/working-hours.js"></script>
+<script src="/js/search-ui.js"></script>
+<script src="/js/calendar.js"></script>
+<script src="/js/event-dialog.js"></script>
+<script src="/js/up-next.js"></script>
+<script src="/js/alert-sync.js"></script>
+<script src="/js/alert-editors.js"></script>
+<script src="/js/alert-delivery.js"></script>
+<script src="/js/sidebar-settings.js"></script>
+<script src="/js/sources-ui.js"></script>
+<script src="/js/feeds.js"></script>
+<script src="/js/refresh-controls.js"></script>
+<script src="/js/theme.js"></script>
+<script src="/js/add-calendar.js"></script>
+<script src="/js/backup-glue.js"></script>
+<script src="/js/main.js"></script>
 </body>
 </html>

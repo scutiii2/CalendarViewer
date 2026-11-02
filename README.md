@@ -10,10 +10,10 @@ VERSION             application version, reported by the server at /api/version
 scripts/            calendar.ps1 (start, restart, stop, startup, toast)
 tools/              deploy.bat (menu) and publish_live.py: put the app on the Zima server; make_zip.bat and make_zip.py: ZIP for a GitHub release
 Dockerfile, docker-compose.yml, .env.example   the server image
-src/server/         server.js (entry point), alerts.js (background alerts), reminders.js (snoozes), backups.js,
-                    mcp.js (read-only MCP server), json-store.js (atomic JSON files), startup.js, powershell.js
+src/server/         server.js (routes and startup), http.js, static-files.js, feed-fetch.js, feed-guard.js, alerts.js (background alerts),
+                    reminders.js (snoozes), backups.js, mcp.js (read-only MCP server), json-store.js (atomic JSON files), startup.js, powershell.js
 src/shared/         alert-logic.js, backup.js and search.js (page and server), storage.js (page only)
-src/web/            index.html, styles.css, app.js (the calendar page), backup-ui.js
+src/web/            index.html, css/styles.css, js/ (the calendar page: one script per feature, loaded in order by index.html, main.js last)
 vendor/             FullCalendar, ical.js and third-party licences
 test/               run with: node --test
 data/               your feeds and alert state (created at run time, private)
@@ -90,7 +90,7 @@ If you move the application folder, run the startup installer again from the new
 - Matching events from multiple sources are merged and display their source badges and dots.
 - Use **Hide cancelled events** in the sidebar to hide events whose titles start with Canceled or Cancelled. The choice is remembered. Events explicitly marked `STATUS:CANCELLED` in the feed are always excluded.
 - Overlapping timed meetings show an **Overlap** badge; open a meeting to see the conflicting titles. Cancelled events, all-day events, hidden calendars and back-to-back meetings do not count. Matching events are merged before checking overlaps.
-- Each linked calendar shows separate **Page** and **Alerts** refresh states with its last successful refresh time. Failed refreshes retain cached events and their original timestamps. Page data is marked stale after twice the selected auto-refresh interval (at least 10 minutes); background alert data after 10 minutes. **Not needed** means no alert offsets are configured. Imported calendars are labelled **Local file**.
+- Each linked calendar shows separate **Page** and **Alerts** refresh states with its last successful refresh time. Failed refreshes retain cached events and their original timestamps. A feed that takes longer than 20 seconds or is larger than 10 MB counts as a failed refresh. Page data is marked stale after twice the selected auto-refresh interval (at least 10 minutes); background alert data after 10 minutes. **Not needed** means no alert offsets are configured. Imported calendars are labelled **Local file**.
 - Upcoming and ongoing events are green; finished events turn gray. Green is reserved for event status.
 - Refresh manually or select an auto-refresh interval (off, or every 1, 5, 10, 15, 30 or 60 minutes) in the sync strip under the calendar toolbar, which also shows the update status. The interval is remembered between visits.
 - **Working hours** in the sidebar shade the hours outside them, and weekends, in every view. A start later than the end (for example 22:00 to 06:00) is an overnight shift. The choice is remembered.
@@ -123,7 +123,7 @@ Calendar data stays on your machine. Remote feed links are saved in `data/feeds.
 The server listens only on `127.0.0.1` (the Docker image listens inside its container and refuses to start without `INTERNAL_API_TOKEN`). This application does not edit the source calendars.
 The [MCP endpoint](#mcp-server) returns event titles, locations and descriptions to any local program that calls it. Set `INTERNAL_API_TOKEN` to require a token.
 
-The app contacts only the calendar hosts you add (including redirects); opening a meeting or description link contacts its destination. All libraries are bundled locally: there is no CDN request and no telemetry.
+The app contacts only the calendar hosts you add (including redirects); opening a meeting or description link contacts its destination. All libraries are bundled locally: there is no CDN request and no telemetry. The server sends a Content Security Policy that allows only scripts and connections from its own origin.
 
 ## Backup and restore
 
@@ -178,6 +178,8 @@ In the container:
 - Armory reaches the MCP endpoint at `http://calendar:3000/mcp`, with the header shown in [MCP server](#mcp-server). `CALENDAR_MCP_HOSTS` lists extra `Host` values accepted on `/mcp`; compose sets `calendar:3000`.
 - The page has no sign-in. With `CALENDAR_BIND_HOST=0.0.0.0`, anyone on the network can read the calendars, so use it only on a network you trust. Backup, restore and snooze buttons are refused unless the page is opened as `localhost` or `127.0.0.1`, so use an ssh tunnel for those: `ssh -L 3000:127.0.0.1:3000 lex@scutiserver1.local`.
 - The server refuses any `CALENDAR_BIND` other than `127.0.0.1` without `INTERNAL_API_TOKEN`. The image sets it to `0.0.0.0` inside the container.
+- A server that is not bound to `127.0.0.1` refuses calendar links that point to private, loopback or link-local addresses (including through redirects), so someone on the network cannot use it to reach other machines. Set `CALENDAR_ALLOW_PRIVATE_FEEDS=1` to allow them. The check resolves the name before fetching, so it is not proof against a DNS answer that changes in between.
+- The container healthcheck calls `/api/health`, which returns 503 when the alert loop has not completed a check for 2.5 minutes.
 - Data lives in the `calendar_data` volume. Windows notifications are not available there, so alerts fire only in the browser.
 
 ### Releasing
@@ -195,7 +197,7 @@ python tools/make_zip.py
 ```
 
 The archive is created at `dist/CalendarViewer-<VERSION>.zip` (the number comes from `VERSION`) and includes everything outside the exclusions below: the app, launchers, `scripts/`, the Docker files, the tests, and this README.
-The archive holds the files git tracks or would track, so everything in `.gitignore` is left out (`.env`, `data/`, `.ics` files, caches, dependencies, build output, older ZIPs). The `.env.example` template is included; `tools/` (deploy and release tooling) is excluded. The `live` branch carries only the files listed under Publish above, so it has neither `tools/` nor any ZIP.
+The archive holds the files git tracks or would track, so everything in `.gitignore` is left out (`.env`, `data/`, `.ics` files, caches, dependencies, build output, older ZIPs). The `.env.example` template is included; `tools/` (deploy and release tooling) and `docs/` (design notes) are excluded. The `live` branch carries only the files listed under Publish above, so it has neither `tools/` nor any ZIP.
 An existing archive of the same version is overwritten.
 Recipients should extract the ZIP before running the launchers and add their own calendars. Node.js is not bundled.
 

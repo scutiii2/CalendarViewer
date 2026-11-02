@@ -78,6 +78,15 @@ function resolveOffsets(rules, eventKey, sourceKeys) {
   return calendarDefaultOffsets(rules, sourceKeys);
 }
 
+// An occurrence can alert only when it is not cancelled and at least one offset applies.
+const isAlertable = (rules, occ) => !isCancelledTitle(occ.title) && resolveOffsets(rules, occ.key, occ.sourceKeys).length > 0;
+
+// Saved links may use webcal:, which the server fetches over https. Returns null when the link is not http(s).
+function normalizeFeedUrl(raw) {
+  const href = String(raw || '').trim().replace(/^webcal:/i, 'https:');
+  return /^https?:\/\//i.test(href) ? href : null;
+}
+
 function maxConfiguredOffset(rules) {
   const all = [...Object.values(rules.calendars), ...Object.values(rules.events)].flatMap(r => r.offsets);
   return all.length ? Math.max(...all) : 0;
@@ -270,7 +279,7 @@ function upNext(sources, now, limit = 3) {
 if (typeof module !== 'undefined') {
   module.exports = {
     DAY_MS, WEEK_MS, expandSources, upNext, pruneFired, MAX_OFFSET_MIN, SNOOZE_MS, DELIVERY_WINDOW_MS, DEFAULT_SOURCE_COLOR, VIEWS, normalizeOffsets, formatOffset, sanitizeRules, resolveOffsets,
-    maxConfiguredOffset, findDueAlerts, alertBody, parseIcs, deduplicateEvents,
+    maxConfiguredOffset, isAlertable, normalizeFeedUrl, findDueAlerts, alertBody, parseIcs, deduplicateEvents,
     findMeetingUrl, collectOccurrences, pickUpNext,
     isCancelledTitle, visibleEvents, markConflicts, syncHealth
   };

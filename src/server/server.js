@@ -5,6 +5,14 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { writeJsonAtomic, readJson } = require('./json-store');
+const { send, sendJson, sendError, readBody } = require('./http');
+const { staticFile, sendStatic } = require('./static-files');
+const { createFeedFetcher } = require('./feed-fetch');
+const { createAlertService } = require('./alerts'); // defines the global ICAL that ./mcp and the shared logic need
+const { createStartupService } = require('./startup');
+const { createBackupService } = require('./backups');
+const { createMcpHandler } = require('./mcp');
+const { normalizeFeedUrl } = require('../shared/alert-logic.js');
 
 const PORT = Number(process.env.PORT) || 3000;
 const BIND = process.env.CALENDAR_BIND || '127.0.0.1'; // 0.0.0.0 only inside the Docker image, where compose publishes loopback
@@ -16,53 +24,13 @@ const VERSION = (() => { try { return fs.readFileSync(path.join(ROOT, 'VERSION')
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const STATIC_ROOTS = [
-  ['/shared/', path.join(ROOT, 'src', 'shared')],
-  ['/vendor/', path.join(ROOT, 'vendor')],
-  ['/', path.join(ROOT, 'src', 'web')]
-];
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
-
-// Only files inside the three public folders are served; anything that escapes them is refused.
-function staticFile(pathname) {
-  const wanted = pathname === '/' ? '/index.html' : pathname;
-  for (const [prefix, dir] of STATIC_ROOTS) {
-    if (!wanted.startsWith(prefix)) continue;
-    const file = path.resolve(dir, decodeURIComponent(wanted.slice(prefix.length)));
-    const type = TYPES[path.extname(file)];
-    if (type && file.startsWith(dir + path.sep) && fs.existsSync(file) && fs.statSync(file).isFile()) return { file, type };
-    return null;
-  }
-  return null;
-}
-const { createAlertService } = require('./alerts');
-const { createStartupService } = require('./startup');
-const { createBackupService } = require('./backups');
-const { createMcpHandler } = require('./mcp'); // after ./alerts, which defines the global ICAL
-
 const readFeeds = () => readJson(FEEDS_FILE, []);
-const writeFeeds = feeds => {
-  writeJsonAtomic(FEEDS_FILE, feeds, { space: 2 });
-};
+const writeFeeds = feeds => writeJsonAtomic(FEEDS_FILE, feeds, { space: 2 });
 
-const send = (res, code, body, type = 'text/plain; charset=utf-8') => {
-  res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' });
-  res.end(body);
-};
-const sendJson = (res, code, obj) => send(res, code, JSON.stringify(obj), 'application/json');
 
-const readBody = (req, limit = 1e5) => new Promise((resolve, reject) => {
-  let data = '';
-  req.on('data', c => { data += c; if (data.length > limit) req.destroy(); });
-  req.on('end', () => resolve(data));
-  req.on('error', reject);
-});
-
-async function fetchFeedText(feed) {
-  const r = await fetch(feed.url, { redirect: 'follow' });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.text();
-}
+// Only a server reachable beyond this machine needs the guard; on 127.0.0.1 the user is the only one who can add feeds.
+const GUARD_PRIVATE = BIND !== '127.0.0.1' && process.env.CALENDAR_ALLOW_PRIVATE_FEEDS !== '1';
+const fetchFeedText = createFeedFetcher({ guardPrivate: GUARD_PRIVATE });
 
 const alerts = createAlertService({
   readFeeds,
@@ -89,13 +57,15 @@ const isLocalAction = req => {
   return req.headers['x-calendar-action'] === '1' && isLocalHost(req) &&
     (!req.headers.origin || ORIGINS.includes(req.headers.origin));
 };
+// Replies 403 and returns true when the request is not a local action from this page.
+const refuseUnlessLocalAction = (req, res) => !isLocalAction(req) && (send(res, 403, 'Forbidden'), true);
 
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
     if (req.method === 'GET') {
-      const asset = staticFile(url.pathname);
-      if (asset) return send(res, 200, fs.readFileSync(asset.file), asset.type);
+      const asset = await staticFile(url.pathname);
+      if (asset) return sendStatic(req, res, asset);
     }
 
     // MCP clients are not browsers: refuse any request carrying an Origin, and foreign Host headers (DNS rebinding).
@@ -112,20 +82,24 @@ http.createServer(async (req, res) => {
     }
 
     if (url.pathname === '/api/version' && req.method === 'GET') return sendJson(res, 200, { version: VERSION });
+    if (url.pathname === '/api/health' && req.method === 'GET') {
+      const health = alerts.health();
+      return sendJson(res, health.ok ? 200 : 503, { version: VERSION, ...health });
+    }
 
     if (url.pathname.startsWith('/api/backup/')) {
-      if (!isLocalAction(req)) return send(res, 403, 'Forbidden');
+      if (refuseUnlessLocalAction(req, res)) return;
       try {
         if (url.pathname === '/api/backup/export' && req.method === 'POST') return sendJson(res, 200, backups.exportBackup(JSON.parse(await readBody(req, 42e6))));
         if (url.pathname === '/api/backup/restore' && req.method === 'POST') return sendJson(res, 200, backups.restoreBackup(JSON.parse(await readBody(req, 42e6))));
         if (url.pathname === '/api/backup/recovery' && req.method === 'GET') return sendJson(res, 200, backups.recoveryBackup());
-      } catch (e) { return send(res, 400, e.message); }
+      } catch (e) { return sendError(res, e); }
     }
 
     if (url.pathname === '/api/alerts/snooze' && req.method === 'POST') {
-      if (!isLocalAction(req)) return send(res, 403, 'Forbidden');
+      if (refuseUnlessLocalAction(req, res)) return;
       try { return sendJson(res, 200, await alerts.snooze(JSON.parse(await readBody(req)))); }
-      catch (e) { return send(res, 400, e.message); }
+      catch (e) { return sendError(res, e); }
     }
     const snoozeAction = url.pathname.match(/^\/alerts\/snooze\/([a-f0-9]{48})$/);
     if (snoozeAction && req.method === 'GET') {
@@ -134,13 +108,13 @@ http.createServer(async (req, res) => {
         await alerts.snoozeTicket(snoozeAction[1]);
         res.setHeader('Referrer-Policy', 'no-referrer');
         return send(res, 200, '<!doctype html><html lang="en"><meta charset="utf-8"><title>Reminder snoozed</title><h1>Reminder snoozed for 5 minutes</h1><p>You can close this tab. The background server will send the reminder.</p><a href="/">Open calendar</a></html>', 'text/html; charset=utf-8');
-      } catch (e) { return send(res, 400, e.message); }
+      } catch (e) { return sendError(res, e); }
     }
 
     if (url.pathname === '/api/startup') {
       if (req.method === 'GET') return sendJson(res, 200, startup.status());
       if (req.method === 'POST') {
-        if (!isLocalAction(req)) return send(res, 403, 'Forbidden');
+        if (refuseUnlessLocalAction(req, res)) return;
         const { enabled } = JSON.parse(await readBody(req));
         return sendJson(res, 200, await startup.set(!!enabled));
       }
@@ -158,8 +132,8 @@ http.createServer(async (req, res) => {
       }
       if (req.method === 'POST') {
         const { name, url: link, color } = JSON.parse(await readBody(req));
-        const href = String(link || '').trim().replace(/^webcal:/i, 'https:');
-        if (!/^https?:\/\//i.test(href)) return send(res, 400, 'Link must start with https:// or webcal://');
+        const href = normalizeFeedUrl(link);
+        if (!href) return send(res, 400, 'Link must start with https:// or webcal://');
         const feed = { id: crypto.randomUUID(), name: String(name || 'Calendar').trim(), color, url: href };
         writeFeeds([...readFeeds(), feed]);
         return sendJson(res, 201, { id: feed.id, name: feed.name, color: feed.color });
@@ -183,9 +157,22 @@ http.createServer(async (req, res) => {
 
     send(res, 404, 'Not found');
   } catch (e) {
-    send(res, 500, e.message);
+    send(res, e.status || 500, e.message);
   }
-}).listen(PORT, BIND, () => {
+});
+
+server.listen(PORT, BIND, () => {
   console.log(`ICS viewer: http://localhost:${PORT}`);
   alerts.start();
 });
+
+// Docker stops with SIGTERM. Every state file is written atomically and synchronously, so nothing needs flushing:
+// stop the alert timer, finish in-flight requests, then exit.
+function shutdown() {
+  alerts.stop();
+  server.close(() => process.exit(0));
+  server.closeIdleConnections();
+  setTimeout(() => process.exit(0), 5000).unref();
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
