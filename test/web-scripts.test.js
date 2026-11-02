@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const vm = require('node:vm');
 
 const ROOT = path.join(__dirname, '..');
 // Same URL-to-folder mapping as STATIC_ROOTS in src/server/static-files.js.
@@ -27,4 +28,30 @@ test('page scripts declare no top-level name twice', () => {
       seen.set(name, url);
     }
   }
+});
+
+// FullCalendar fetches events during construction, before render() or main.js runs.
+test('calendar construction loads initial events without script-order errors', async () => {
+  const warnings = [];
+  const elements = new Map();
+  const document = {
+    getElementById(id) {
+      if (!elements.has(id)) elements.set(id, { getRootNode: () => ({}), addEventListener() {} });
+      return elements.get(id);
+    }
+  };
+  const context = vm.createContext({
+    console: { ...console, warn: (...args) => warnings.push(String(args[0])) },
+    setTimeout, clearTimeout, URL
+  });
+  const ordered = scripts().slice(0, scripts().indexOf('/js/calendar.js') + 1)
+    .filter(url => url !== '/js/theme-init.js' && url !== '/js/backup-ui.js');
+  const code = await Promise.all(ordered.map(url => fs.promises.readFile(fileFor(url), 'utf8')));
+  for (const [index, url] of ordered.entries()) {
+    // Vendor loads without browser globals; the constructor path needs only these DOM boundaries.
+    if (url === '/js/core.js') Object.assign(context, { document, localStorage: { getItem: () => null } });
+    vm.runInContext(code[index], context, { filename: url });
+  }
+  assert.deepEqual(warnings, [], 'initial event fetch must not reference an unloaded script');
+  assert.equal(elements.get('search-status').textContent, 'Search titles and locations in the displayed date range.');
 });

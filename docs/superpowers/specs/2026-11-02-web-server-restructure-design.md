@@ -73,7 +73,9 @@ Head, in this order:
 `/js/theme-init.js`, `/vendor/ical.min.js`, `/vendor/fullcalendar.min.js`, `/shared/alert-logic.js`, `/shared/search.js`, `/shared/backup.js`, `/shared/storage.js`, `/js/backup-ui.js`, then `<link rel="stylesheet" href="/css/styles.css">`.
 
 End of body, in this order:
-`/js/core.js`, `/js/state.js`, `/js/sources-store.js`, `/js/event-format.js`, `/js/event-cards.js`, `/js/working-hours.js`, `/js/calendar.js`, `/js/search-ui.js`, `/js/event-dialog.js`, `/js/up-next.js`, `/js/alert-sync.js`, `/js/alert-editors.js`, `/js/alert-delivery.js`, `/js/sidebar-settings.js`, `/js/sources-ui.js`, `/js/feeds.js`, `/js/refresh-controls.js`, `/js/theme.js`, `/js/add-calendar.js`, `/js/backup-glue.js`, `/js/main.js`.
+`/js/core.js`, `/js/state.js`, `/js/sources-store.js`, `/js/event-format.js`, `/js/event-cards.js`, `/js/working-hours.js`, `/js/search-ui.js`, `/js/calendar.js`, `/js/event-dialog.js`, `/js/up-next.js`, `/js/alert-sync.js`, `/js/alert-editors.js`, `/js/alert-delivery.js`, `/js/sidebar-settings.js`, `/js/sources-ui.js`, `/js/feeds.js`, `/js/refresh-controls.js`, `/js/theme.js`, `/js/add-calendar.js`, `/js/backup-glue.js`, `/js/main.js`.
+
+FullCalendar calls its `events()` callback during construction, before `render()`. Load `search-ui.js` before `calendar.js` so `updateSearchStatus` exists for that first fetch; search handlers access `calendar` only when invoked later.
 
 ## Rules for moving page code
 

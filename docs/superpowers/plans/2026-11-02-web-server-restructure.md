@@ -385,12 +385,14 @@ Replace the Task 4 script block with this (app.js stays last):
 <script src="/js/event-format.js"></script>
 <script src="/js/event-cards.js"></script>
 <script src="/js/working-hours.js"></script>
-<script src="/js/calendar.js"></script>
 <script src="/js/search-ui.js"></script>
+<script src="/js/calendar.js"></script>
 <script src="/js/event-dialog.js"></script>
 <script src="/js/up-next.js"></script>
 <script src="/js/app.js"></script>
 ```
+
+FullCalendar calls `events()` during construction, so `search-ui.js` must load before `calendar.js` to define `updateSearchStatus` for the first fetch. The search handlers use `calendar` only when invoked later.
 
 - [ ] **Step 7: Point the search test at `calendar.js`**
 
@@ -860,4 +862,4 @@ git commit -m "docs: describe the new web and server layout"
 - **Spec coverage:** layout (Tasks 3 to 10), load order (Tasks 4 to 8 and the spec list), bug fix (Task 1), ZIP exclusion (Task 1), guard test (Task 2), names check (Tasks 4 and 8), README and notices (Tasks 3 and 11), no-change list (Global Constraints). Browser acceptance is the reviewer's, at Checkpoints 1 and 2.
 - **Placeholders:** none. Every moved name is listed; new code (`main.js`, `showEventDialog` wrapper, `web-scripts.test.js`, three server modules, `functionCode` change) is written out.
 - **Name consistency:** `showEventDialog(event)`, `createFeedFetcher({ guardPrivate })`, `fetchFeedText(feed)`, `staticFile`, `sendStatic`, `send`, `sendJson`, `sendError`, `readBody`, `SECURITY_HEADERS` match across tasks.
-- **Risk to watch:** a load-time statement that reads a name from a later script. The ownership table lists each file's load-time statements and the script order satisfies them (`alert-sync.js` before `sidebar-settings.js`; `working-hours.js` before `calendar.js`; `calendar.js` before `up-next.js` because of `calBox` and `syncStrip`).
+- **Risk to watch:** a load-time statement that reads a name from a later script. The ownership table lists each file's load-time statements and the script order satisfies them (`alert-sync.js` before `sidebar-settings.js`; `working-hours.js` and `search-ui.js` before `calendar.js` (the constructor calls `events()` immediately); `calendar.js` before `up-next.js` because of `calBox` and `syncStrip`).
