@@ -1,64 +1,4 @@
-// localStorage throws when blocked or full, so every access goes through here. Reads fall back; writes report only when given a message.
-const store = {
-  get(key) { try { return localStorage.getItem(key); } catch { return null; } },
-  json(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } },
-  list(key) { const value = store.json(key, []); return Array.isArray(value) ? value : []; },
-  set(key, value, failure) {
-    try { localStorage.setItem(key, value); }
-    catch (e) { if (failure) setStatus(failure + ': ' + e.message); }
-  }
-};
-function create(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text != null) node.textContent = text;
-  return node;
-}
-const PALETTE = ['#2563eb', '#dc2626', '#d97706', '#7c3aed', '#0891b2', '#db2777'];
-const LOCAL_SOURCES_KEY = 'ics-calendar-viewer.localSources.v1';
-const FEED_CACHE_KEY = 'ics-calendar-viewer.feedSnapshots.v1';
-const FEED_PREFERENCES_KEY = 'ics-calendar-viewer.feedPreferences.v1';
-let restoringBackup = false;
-const snoozedOccurrences = new Map();
-const sources = []; // {id, name, color, enabled, events: ICAL.Event[]}
-let nextId = 1;
-const HIDE_CANCELLED_KEY = 'ics-calendar-viewer.hideCancelled.v1';
-const VIEW_KEY = 'ics-calendar-viewer.view.v1';
-let initialView = 'timeGridWorkWeek';
-const savedView = store.get(VIEW_KEY);
-if (VIEWS.includes(savedView)) initialView = savedView;
-let searchQuery = '';
-const searchInput = document.getElementById('event-search');
-const clearSearch = document.getElementById('clear-search');
-const searchStatus = document.getElementById('search-status');
-let hideCancelled = store.get(HIDE_CANCELLED_KEY) === 'true';
-let backgroundFeedHealth = new Map();
-let backgroundReachable = false;
 
-const ALERT_RULES_KEY = 'ics-calendar-viewer.alertRules.v1';
-const ALERT_FIRED_KEY = 'ics-calendar-viewer.alertsFired.v1';
-let alertRules = sanitizeRules(store.json(ALERT_RULES_KEY, null));
-let firedAlerts = store.json(ALERT_FIRED_KEY, {});
-const BELL_PATH = '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>';
-const BELL_OFF_PATH = BELL_PATH + '<path d="M3 3l18 18"/>';
-
-// A bell on every card that will alert, and a crossed bell on upcoming cards that will not.
-function alertIndicator(key, sourceKeys, finishMs, cancelled = false) {
-  const rules = alertRules, event = rules.events[key];
-  let state = 'on', label = 'Alert set';
-  if (cancelled) { state = 'muted'; label = 'Cancelled — alerts disabled'; }
-  else if (event && event.mode === 'muted') { state = 'muted'; label = 'Alerts muted for this event'; }
-  else if (rules.global.muted) { state = 'muted'; label = 'All alerts muted'; }
-  else if (!resolveOffsets(rules, key, sourceKeys).length) { state = 'none'; label = 'No alert set'; }
-  if (state !== 'on' && finishMs <= Date.now()) return null;
-  const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  icon.setAttribute('class', 'event-bell ' + state);
-  icon.setAttribute('viewBox', '0 0 24 24');
-  icon.setAttribute('role', 'img');
-  icon.setAttribute('aria-label', label);
-  icon.innerHTML = '<title>' + label + '</title>' + (state === 'on' ? BELL_PATH : BELL_OFF_PATH);
-  return icon;
-}
 
 function isReservedGreen(color) {
   const hex = /^#([0-9a-f]{6})$/i.exec(color || '');
@@ -71,79 +11,7 @@ function isReservedGreen(color) {
   return hue >= 75 && hue <= 170;
 }
 
-function eventFinishTime(event) {
-  if (event.end) return event.end.getTime();
-  const end = new Date(event.start);
-  if (event.allDay) end.setDate(end.getDate() + 1);
-  else end.setHours(end.getHours() + 1);
-  return end.getTime();
-}
 
-function updateEventStatus() {
-  document.querySelectorAll('.event-card[data-finish]').forEach(card => {
-    card.classList.toggle('completed', Number(card.dataset.finish) <= Date.now());
-  });
-}
-
-function localSourceSnapshots() {
-  return sources.filter(s => !s.feedId && s.icsText).map(s => ({
-    name: s.name, color: s.color, enabled: s.enabled, icsText: s.icsText, alertKey: s.alertKey
-  }));
-}
-
-function feedPreferenceSnapshots() {
-  return sources.filter(s => s.feedId).map(s => ({ feedId: s.feedId, name: s.name, color: s.color, enabled: s.enabled }));
-}
-
-function saveLocalSources() {
-  store.set(LOCAL_SOURCES_KEY, JSON.stringify(localSourceSnapshots()), 'Could not save local calendars');
-  saveFeedPreferences();
-  scheduleAlertSync();
-}
-
-function saveFeedPreferences() {
-  const prefs = new Map(store.list(FEED_PREFERENCES_KEY).filter(s => s && typeof s.feedId === 'string').map(s => [s.feedId, s]));
-  feedPreferenceSnapshots().forEach(s => prefs.set(s.feedId, s));
-  store.set(FEED_PREFERENCES_KEY, JSON.stringify([...prefs.values()]), 'Could not save calendar preferences');
-}
-
-function feedPreference(feedId) {
-  return store.list(FEED_PREFERENCES_KEY).find(s => s && s.feedId === feedId) || {};
-}
-
-function restoreLocalSources() {
-  store.list(LOCAL_SOURCES_KEY).forEach(s => {
-    if (!s || typeof s.icsText !== 'string' || typeof s.alertKey !== 'string') return;
-    try {
-      sources.push({
-        id: nextId++, name: String(s.name || 'Local calendar'), color: s.color || PALETTE[sources.length % PALETTE.length],
-        enabled: s.enabled !== false, events: parseIcs(s.icsText), icsText: s.icsText, alertKey: s.alertKey
-      });
-    } catch { /* Ignore a saved calendar that can no longer be read. */ }
-  });
-}
-
-const readFeedCache = () => store.list(FEED_CACHE_KEY);
-const writeFeedCache = cached => store.set(FEED_CACHE_KEY, JSON.stringify(cached), 'Could not save calendar cache');
-
-function cacheFeedSnapshot(feed, icsText) {
-  const cached = readFeedCache().filter(s => s.feedId !== feed.id);
-  cached.push({ feedId: feed.id, name: feed.name, color: feed.color, icsText, fetchedAt: Date.now() });
-  writeFeedCache(cached);
-}
-
-function restoreFeedCache() {
-  readFeedCache().forEach(s => {
-    if (!s || !s.feedId || typeof s.icsText !== 'string') return;
-    try {
-      sources.push({
-        id: nextId++, feedId: s.feedId, alertKey: 'f:' + s.feedId, name: String(s.name || 'Calendar'),
-        color: s.color || PALETTE[sources.length % PALETTE.length], enabled: true,
-        events: parseIcs(s.icsText), fetchedAt: s.fetchedAt, ...feedPreference(s.feedId)
-      });
-    } catch { /* Ignore an obsolete or malformed cached snapshot. */ }
-  });
-}
 
 function currentScrollTime() {
   const now = new Date();
@@ -158,35 +26,7 @@ function focusCurrentTime() {
   requestAnimationFrame(() => requestAnimationFrame(() => calendar.scrollToTime(scrollTime)));
 }
 
-function externalLink(href, text, className) {
-  const link = create('a', className, text);
-  link.href = href;
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  return link;
-}
 
-function renderDetailText(element, text) {
-  const value = String(text || '');
-  element.replaceChildren();
-  let offset = 0;
-  for (const match of value.matchAll(URL_PATTERN)) {
-    element.append(document.createTextNode(value.slice(offset, match.index)));
-    const url = readableUrl(match[0]);
-    if (url) {
-      element.append(externalLink(url.href, isTeamsMeeting(url) ? 'Join Teams meeting' : 'Open link'));
-    } else element.append(document.createTextNode('[Link unavailable]'));
-    offset = match.index + match[0].length;
-  }
-  element.append(document.createTextNode(value.slice(offset)));
-}
-
-function splitDescription(text) {
-  const value = String(text || '').replace(/\r\n/g, '\n');
-  const footer = /^\s*(?:Microsoft Teams(?: meeting)?\s*$|Join (?:the )?meeting(?: now)?\s*$|_{5,}|-{10,})/im.exec(value);
-  if (!footer) return { description: value.trim(), footer: '' };
-  return { description: value.slice(0, footer.index).trim(), footer: value.slice(footer.index).replace(/^\s*[_-]{5,}\s*/g, '').trim() };
-}
 
 // The sync strip lives in <main> in the markup; move it once so it sits directly under FullCalendar's toolbar.
 const syncStrip = document.getElementById('sync-strip');
@@ -372,72 +212,7 @@ function resetSearch() {
 }
 clearSearch.addEventListener('click', resetSearch);
 
-function createEventCard(event, className) {
-  const card = create('div', 'event-card' + (className ? ' ' + className : '') + (isCancelledTitle(event.title) ? ' canceled' : ''));
-  card.title = event.title;
-  card.dataset.finish = eventFinishTime(event);
-  card.classList.toggle('completed', Number(card.dataset.finish) <= Date.now());
-  return card;
-}
 
-function createSourceDots(details) {
-  const dots = create('div', 'event-sources');
-  details.forEach(source => {
-    const dot = create('span', 'source-dot');
-    dot.style.setProperty('--detail-color', source.color);
-    dot.title = source.name;
-    dots.append(dot);
-  });
-  return dots;
-}
-
-// Appends the alert bell when the event shows one; returns whether it did.
-function appendEventBell(parent, event) {
-  const p = event.extendedProps;
-  const bell = alertIndicator(eventAlertKey(p.uid, event.title), eventSourceKeys(p), eventFinishTime(event), isCancelledTitle(event.title));
-  if (bell) parent.append(bell);
-  return !!bell;
-}
-
-function agendaEventContent(arg) {
-  const event = arg.event, p = event.extendedProps;
-  const card = createEventCard(event, 'agenda-card');
-  const heading = create('div', 'agenda-heading');
-  heading.append(create('span', 'event-title', event.title));
-  appendConflictBadge(heading, p.conflicts);
-  appendEventBell(heading, event);
-  card.append(heading);
-  const details = [p.location, p.sourceDetails.map(source => source.name).join(', ')].filter(Boolean);
-  if (details.length) card.append(create('div', 'agenda-detail', details.join(' · ')));
-  return { domNodes: [card] };
-}
-
-function appendConflictBadge(card, conflicts) {
-  if (!conflicts?.length) return;
-  const badge = create('span', 'conflict-badge', 'Overlap');
-  badge.title = 'Overlaps with: ' + conflicts.join(', ');
-  badge.setAttribute('aria-label', badge.title);
-  card.classList.add('has-conflict');
-  card.append(badge);
-  card.title += '\n' + badge.title;
-}
-
-function durationText(ms) {
-  const minutes = Math.round(ms / 60000);
-  if (!(minutes > 0)) return '';
-  const h = Math.floor(minutes / 60), m = minutes % 60;
-  return ' · ' + (h ? h + ' h' : '') + (h && m ? ' ' : '') + (m ? m + ' min' : '');
-}
-
-function eventStatus(event, canceled) {
-  if (canceled) return { state: 'canceled', text: 'Canceled' };
-  if (event.allDay) return { state: 'upcoming', text: '' };
-  const now = Date.now();
-  const start = event.start.getTime();
-  if (eventFinishTime(event) <= now) return { state: 'ended', text: 'Ended' };
-  if (start <= now) return { state: 'live', text: 'In progress' };
-  return { state: 'upcoming', text: 'Starts in ' + formatRemaining(start - now) };
-}
 
 document.getElementById('dd-toggle').onclick = e => {
   const dd = document.getElementById('dd');
@@ -1023,20 +798,6 @@ async function addFiles(files) {
   setAddCardOpen(false);
 }
 
-const setStatus = msg => {
-  const status = document.getElementById('status');
-  status.textContent = msg;
-  status.title = msg; // The strip truncates long messages; the full text stays available on hover.
-};
-
-async function api(path, opts) {
-  const r = await fetch(path, opts);
-  if (!r.ok) throw new Error((await r.text()) || 'HTTP ' + r.status);
-  return r;
-}
-const apiJson = async (path, opts) => (await api(path, opts)).json();
-// Machine-changing routes need this header; the server refuses them without it.
-const apiAction = (path, opts = {}) => apiJson(path, { ...opts, headers: { 'X-Calendar-Action': '1', ...opts.headers } });
 
 let pendingRefreshes = 0;
 let refreshQueued = false;
