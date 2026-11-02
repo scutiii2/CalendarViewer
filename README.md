@@ -10,10 +10,10 @@ VERSION             application version, reported by the server at /api/version
 scripts/            calendar.ps1 (start, restart, stop, startup, toast)
 tools/              deploy.bat (menu) and publish_live.py: put the app on the Zima server; make_zip.bat and make_zip.py: ZIP for a GitHub release
 Dockerfile, docker-compose.yml, .env.example   the server image
-src/server/         server.js (entry point), alerts.js (background alerts), reminders.js (snoozes), backups.js,
-                    mcp.js (read-only MCP server), json-store.js (atomic JSON files), startup.js, powershell.js
+src/server/         server.js (routes and startup), http.js, static-files.js, feed-fetch.js, feed-guard.js, alerts.js (background alerts),
+                    reminders.js (snoozes), backups.js, mcp.js (read-only MCP server), json-store.js (atomic JSON files), startup.js, powershell.js
 src/shared/         alert-logic.js, backup.js and search.js (page and server), storage.js (page only)
-src/web/            index.html, css/styles.css, js/ (the calendar page: app.js, backup-ui.js, theme-init.js)
+src/web/            index.html, css/styles.css, js/ (the calendar page: one script per feature, loaded in order by index.html, main.js last)
 vendor/             FullCalendar, ical.js and third-party licences
 test/               run with: node --test
 data/               your feeds and alert state (created at run time, private)
