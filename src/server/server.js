@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const { writeJsonAtomic, readJson } = require('./json-store');
 const { send, sendJson, sendError, readBody } = require('./http');
 const { staticFile, sendStatic } = require('./static-files');
-const { assertPublicUrl } = require('./feed-guard');
+const { createFeedFetcher } = require('./feed-fetch');
 const { createAlertService } = require('./alerts'); // defines the global ICAL that ./mcp and the shared logic need
 const { createStartupService } = require('./startup');
 const { createBackupService } = require('./backups');
@@ -27,40 +27,10 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 const readFeeds = () => readJson(FEEDS_FILE, []);
 const writeFeeds = feeds => writeJsonAtomic(FEEDS_FILE, feeds, { space: 2 });
 
-const FEED_TIMEOUT_MS = Number(process.env.CALENDAR_FEED_TIMEOUT_MS) || 20000; // the override is for tests
-const FEED_MAX_BYTES = 10e6;
 
 // Only a server reachable beyond this machine needs the guard; on 127.0.0.1 the user is the only one who can add feeds.
 const GUARD_PRIVATE = BIND !== '127.0.0.1' && process.env.CALENDAR_ALLOW_PRIVATE_FEEDS !== '1';
-const MAX_REDIRECTS = 5;
-
-// A hung or endless feed must not stall alert refreshes or MCP calls. Redirects are followed by hand so each hop can be checked.
-async function fetchFeedText(feed) {
-  const signal = AbortSignal.timeout(FEED_TIMEOUT_MS);
-  let r, link = feed.url;
-  try {
-    for (let hops = 0; ; hops++) {
-      if (GUARD_PRIVATE) await assertPublicUrl(link);
-      r = await fetch(link, { redirect: 'manual', signal });
-      const next = r.status >= 300 && r.status < 400 && r.headers.get('location');
-      if (!next) break;
-      if (hops >= MAX_REDIRECTS) throw new Error('Feed redirects too many times');
-      await r.body?.cancel();
-      link = new URL(next, link).href;
-    }
-  } catch (e) { throw e.name === 'TimeoutError' ? new Error('Feed timed out') : e; }
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  const chunks = [];
-  let size = 0;
-  try {
-    for await (const c of r.body) {
-      size += c.length;
-      if (size > FEED_MAX_BYTES) { r.body.cancel().catch(() => {}); throw new Error('Feed is larger than 10 MB'); }
-      chunks.push(c);
-    }
-  } catch (e) { throw e.name === 'TimeoutError' ? new Error('Feed timed out') : e; }
-  return Buffer.concat(chunks).toString();
-}
+const fetchFeedText = createFeedFetcher({ guardPrivate: GUARD_PRIVATE });
 
 const alerts = createAlertService({
   readFeeds,
