@@ -37,7 +37,7 @@ test('filtering matches after conflict detection preserves hidden overlaps', () 
 });
 
 test('real calendar event pipeline honors calendar and cancellation filters before searching', () => {
-  const app = fs.readFileSync(path.join(__dirname, '../src/web/js/app.js'), 'utf8');
+  const app = fs.readFileSync(path.join(__dirname, '../src/web/js/calendar.js'), 'utf8');
   const start = new Date(2026, 9, 30, 10), end = new Date(2026, 9, 30, 11);
   let status;
   const context = vm.createContext({
