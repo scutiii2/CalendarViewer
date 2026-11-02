@@ -741,7 +741,7 @@ startupToggle.onchange = async () => {
   startupToggle.disabled = true;
   setStartupState('busy', wanted ? 'Turning on…' : 'Turning off…');
   try {
-    showStartup(await apiJson('/api/startup', { method: 'POST', headers: { 'X-Calendar-Action': '1' }, body: JSON.stringify({ enabled: wanted }) }));
+    showStartup(await apiAction('/api/startup', { method: 'POST', body: JSON.stringify({ enabled: wanted }) }));
     setStartupState('ok', wanted ? 'Turned on' : 'Turned off');
     setStatus(wanted ? 'Server will start with Windows.' : 'Automatic startup turned off.');
   } catch (e) {
@@ -796,8 +796,8 @@ function showToast(occ, body) {
     snooze.onclick = async () => {
       snooze.disabled = true;
       try {
-        const deferred = await apiJson('/api/alerts/snooze', {
-          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Calendar-Action': '1' },
+        const deferred = await apiAction('/api/alerts/snooze', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key: occ.key, start: occ.start })
         });
         snoozedOccurrences.set(occ.key + '|' + occ.start, deferred.dueAt);
@@ -1039,6 +1039,8 @@ async function api(path, opts) {
   return r;
 }
 const apiJson = async (path, opts) => (await api(path, opts)).json();
+// Machine-changing routes need this header; the server refuses them without it.
+const apiAction = (path, opts = {}) => apiJson(path, { ...opts, headers: { 'X-Calendar-Action': '1', ...opts.headers } });
 
 let pendingRefreshes = 0;
 let refreshQueued = false;
@@ -1269,7 +1271,7 @@ function applyBackupClientState(backup, { validateOnly = false } = {}) {
 CalendarBackupUI.init({
   getClientState: getBackupClientState,
   applyClientState: applyBackupClientState,
-  api: apiJson,
+  api: apiAction,
   onRestoreStart: () => { restoringBackup = true; clearTimeout(alertSyncTimer); },
   onRestoreFailure: ({ uncertain = false } = {}) => {
     restoringBackup = uncertain;

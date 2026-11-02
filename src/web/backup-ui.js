@@ -5,7 +5,7 @@
     const dialog = el('backup-preview'), error = el('backup-error'), restore = el('backup-restore'), input = el('backup-file');
     let pending = null, busy = false;
     // api(path,{method,body}) must return the decoded response or throw on HTTP errors.
-    const request = async (path, body) => api(path, body === undefined ? {headers:{'X-Calendar-Action':'1'}} : {method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'application/json','X-Calendar-Action':'1'}});
+    const request = async (path, body) => api(path, body === undefined ? {} : {method:'POST',body:JSON.stringify(body),headers:{'Content-Type':'application/json'}});
     const showError = e => { error.textContent = e.message || String(e); if (!dialog.open) dialog.showModal(); };
     function preview(backup) {
       pending = root.CalendarBackup.validateBackup(backup);

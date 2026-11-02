@@ -46,7 +46,7 @@ function createReminderStore({ file, now = Date.now }) {
     for (const item of state.pending) {
       if (item.start <= t || rules.global.muted) continue;
       const occ = current.get(idFor(item));
-      if (occ && (logic.isCancelledTitle(occ.title) || !logic.resolveOffsets(rules, occ.key, occ.sourceKeys).length)) continue;
+      if (occ && !logic.isAlertable(rules, occ)) continue;
       if (!occ || silent || item.dueAt > t) { pending.push(item); continue; }
       due.push({ id: idFor(item) + '|' + item.dueAt, occ, deliveredAt: t });
     }

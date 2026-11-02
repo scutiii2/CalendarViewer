@@ -177,7 +177,7 @@ function createAlertService({ readFeeds, fetchText, notify = windowsToast, state
     if (horizon <= 0 || horizon > logic.MAX_OFFSET_MIN * 60000) throw new Error('This event is no longer upcoming.');
     const occ = logic.collectOccurrences(currentSources(readFeeds()), now(), horizon)
       .find(o => o.key === reference.key && o.start === reference.start);
-    if (!occ || logic.isCancelledTitle(occ.title) || !logic.resolveOffsets(state.rules, occ.key, occ.sourceKeys).length) {
+    if (!occ || !logic.isAlertable(state.rules, occ)) {
       throw new Error('This reminder is cancelled or inactive.');
     }
     return reminders.schedule(occ);

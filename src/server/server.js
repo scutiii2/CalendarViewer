@@ -37,6 +37,7 @@ async function staticFile(pathname) {
   return null;
 }
 const { assertPublicUrl } = require('./feed-guard');
+const { normalizeFeedUrl } = require('../shared/alert-logic.js'); // needs the global ICAL only when parsing, so any order works
 const { createAlertService } = require('./alerts');
 const { createStartupService } = require('./startup');
 const { createBackupService } = require('./backups');
@@ -210,8 +211,8 @@ const server = http.createServer(async (req, res) => {
       }
       if (req.method === 'POST') {
         const { name, url: link, color } = JSON.parse(await readBody(req));
-        const href = String(link || '').trim().replace(/^webcal:/i, 'https:');
-        if (!/^https?:\/\//i.test(href)) return send(res, 400, 'Link must start with https:// or webcal://');
+        const href = normalizeFeedUrl(link);
+        if (!href) return send(res, 400, 'Link must start with https:// or webcal://');
         const feed = { id: crypto.randomUUID(), name: String(name || 'Calendar').trim(), color, url: href };
         writeFeeds([...readFeeds(), feed]);
         return sendJson(res, 201, { id: feed.id, name: feed.name, color: feed.color });
