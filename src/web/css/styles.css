@@ -84,11 +84,11 @@
   .header-date { margin: 0; font-size: 17px; width: 32px; height: 32px; }
   .fc .fc-day-today .header-date { background: var(--brand); }
   .fc .fc-timegrid-slot { height: 4em; } /* a 30-minute slot must fit one event card (about 53px), or short events look longer than they are */
-  .event-card { width: 100%; padding: 5px 8px; }
+  .event-card { width: 100%; }
   .fc .fc-event, .fc .fc-event * { cursor: pointer; }
-  .fc .fc-timegrid-event { overflow: visible; min-height: max-content; }
-  .fc .fc-timegrid-event .fc-event-main { height: auto; min-height: 100%; }
-  .event-card { min-height: 100%; height: auto; }
+  .fc .fc-timegrid-event { overflow: hidden; } /* a card never extends past its end time */
+  .fc .fc-timegrid-event .fc-event-main { height: 100%; overflow: hidden; }
+  .fc .fc-timegrid-event .event-card { height: 100%; min-height: 0; padding: 3px 8px; overflow: hidden; }
   .event-title { white-space: normal; overflow-wrap: anywhere; }
   /* Every event is the same card as the Up next list: a status-coloured frame around a darker fill of the same colour. */
   .fc .fc-event, .up-item { --card-accent: #16833b; }
