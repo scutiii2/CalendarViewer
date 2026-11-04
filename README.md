@@ -2,7 +2,9 @@
 
 A read-only calendar that combines ICS links and imported `.ics` files in a Teams-inspired interface.
 
-The layout adapts to your screen: phones open a daily agenda, portrait and tablet screens open a three-day calendar, and wide landscape screens retain the full desktop layout. Use the week picker to jump to a date and the view buttons to switch between the grid and agenda. On compact screens, Calendars and Settings open a drawer; tap an event for its details. Each layout remembers its own view preference, and rotating your device keeps the selected date.
+The layout adapts to your screen: phones open a daily agenda, portrait and tablet screens open a three-day calendar, and wide landscape screens retain the full desktop layout. Drag, swipe, or scroll the date strip to roll through days; it snaps to the selected date. You can also tap a date or use the arrow keys, and switch between the grid and agenda with the view buttons. On compact screens, the menu button opens calendars and settings; tap an event for its details. Each layout remembers its own view preference, and rotating your device keeps the selected date.
+
+Click the date button to open the date picker. Scroll or drag its month, day, and year wheels, or use the up/down arrow keys, then press Apply date to jump to your selection. Closing the modal cancels pending changes. Today sits between the previous/next week arrows.
 
 ## Project layout
 

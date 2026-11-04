@@ -3,8 +3,8 @@ function renderCompactCalendar() {
   const title = document.getElementById('compact-title');
   if (!title || responsiveMode === 'desktop') return;
   const date = calendar.getDate();
-  document.getElementById('compact-weekday').textContent = date.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-  title.textContent = responsiveMode === 'mobile' ? 'Your day, at a glance.' : date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  document.getElementById('compact-weekday').textContent = date.toLocaleDateString(undefined, { weekday: 'long' });
+  compactDatePicker.update(date);
   // FullCalendar writes height inline; set its option rather than fighting it with CSS.
   const height = calendar.view.type.startsWith('list') ? 'auto' : responsiveMode === 'mobile' ? 540 : 660;
   if (calendar.getOption('height') !== height) calendar.setOption('height', height);
@@ -21,20 +21,7 @@ function renderCompactCalendar() {
     }));
   }
   views.querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.view === calendar.view.type)));
-  const week = document.getElementById('compact-week');
-  const focusedDate = week.contains(document.activeElement) ? document.activeElement.dataset.date : null;
-  week.replaceChildren(...CalendarLayout.week(date).map(day => {
-    const button = create('button', 'compact-day');
-    button.type = 'button';
-    button.dataset.date = String(day.getTime());
-    button.setAttribute('aria-label', day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }));
-    button.setAttribute('aria-pressed', String(day.toDateString() === date.toDateString()));
-    if (day.toDateString() === new Date().toDateString()) button.setAttribute('aria-current', 'date');
-    button.append(create('span', '', day.toLocaleDateString(undefined, { weekday: 'narrow' })), create('strong', '', day.getDate()));
-    button.onclick = () => calendar.gotoDate(day);
-    return button;
-  }));
-  if (focusedDate) week.querySelector(`[data-date="${focusedDate}"]`)?.focus();
+  compactDateWheel.render(date);
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   document.getElementById('compact-week').title = 'Times shown in ' + zone;
   renderCompactNext();
@@ -69,7 +56,6 @@ function initResponsiveUI() {
   const backdrop = document.querySelector('.sidebar-backdrop');
   const close = document.getElementById('sidebar-close');
   const main = document.querySelector('main');
-  const nav = document.querySelector('.compact-nav');
   const header = document.querySelector('.compact-header');
   const refreshLabel = document.querySelector('.sync-auto');
   let opener = null;
@@ -80,7 +66,7 @@ function initResponsiveUI() {
     sidebar.removeAttribute('role');
     sidebar.removeAttribute('aria-modal');
     sidebar.inert = responsiveMode !== 'desktop';
-    main.inert = nav.inert = header.inert = false;
+    main.inert = header.inert = false;
     document.querySelectorAll('[data-open-panel]').forEach(button => button.setAttribute('aria-expanded', 'false'));
     closeSourceMenu(false);
     if (wasOpen && restoreFocus && opener) opener.focus();
@@ -93,7 +79,7 @@ function initResponsiveUI() {
     sidebar.setAttribute('aria-modal', 'true');
     document.body.classList.add('sidebar-open');
     backdrop.hidden = false;
-    main.inert = nav.inert = header.inert = true;
+    main.inert = header.inert = true;
     document.querySelectorAll('[data-open-panel]').forEach(button => button.setAttribute('aria-expanded', 'true'));
     const target = section === 'settings' ? sidebar.querySelector('.alerts-panel') : sidebar.querySelector('.sb-head');
     target.scrollIntoView({ block: 'start' });
@@ -116,7 +102,6 @@ function initResponsiveUI() {
     else if (!event.shiftKey && (at === nodes.length - 1 || at < 0)) { event.preventDefault(); nodes[0].focus(); }
   });
   document.getElementById('compact-today').onclick = () => calendar.today();
-  document.getElementById('compact-calendar-tab').onclick = () => closePanel();
   for (const [id, days] of [['compact-prev', -7], ['compact-next', 7]]) {
     document.getElementById(id).onclick = () => {
       const date = calendar.getDate();
