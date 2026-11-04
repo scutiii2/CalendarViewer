@@ -189,7 +189,7 @@ In the container:
 ### Releasing
 
 1. Run `tools\deploy.bat` and choose option **R**. It asks whether to **overwrite** the current version or go to the **next** one. Overwrite moves the current tags to the newest commits, so use it only before the version's official GitHub release. Next asks for a new number, commits it to `VERSION`, and releases that version.
-2. The release tags `vX.Y.Z` on `main` and `live-vX.Y.Z` on `live` and pushes both with the `live` branch. It refuses a version already released with different files, and when the live files are unchanged it only tags the current `live` tip. From a terminal, `python tools/publish_live.py --release` does the same, and `--replace` is the overwrite choice.
+2. The release tags `vX.Y.Z` on `main` and `live-vX.Y.Z` on `live` and pushes both with the `live` branch. It refuses a version already released with different files, and when the live files are unchanged it only tags the current `live` tip. From a terminal, `uv run tools/publish_live.py --release` does the same, and `--replace` is the overwrite choice.
 3. Run `tools\make_zip.bat`. It builds the desktop ZIP, selects it in Explorer and opens GitHub's new-release page for the tag, where you drag the ZIP on and publish.
 
 ## Package the application
@@ -197,7 +197,7 @@ In the container:
 Double-click `tools\make_zip.bat`, or run:
 
 ```bat
-python tools/make_zip.py
+uv run tools/make_zip.py
 ```
 
 The archive is created at `dist/CalendarViewer-<VERSION>.zip` (the number comes from `VERSION`) and includes everything outside the exclusions below: the app, launchers, `scripts/`, the Docker files, the tests, and this README.

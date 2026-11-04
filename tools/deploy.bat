@@ -38,7 +38,7 @@ goto menu
 
 rem :publish [--dry-run | --release]
 :publish
-py "%~dp0publish_live.py" %*
+uv run "%~dp0publish_live.py" %*
 if errorlevel 1 (echo Publish failed. & exit /b 1)
 if /i not "%~1"=="--dry-run" call :reminder "Code is on the live branch. On the server:" "git pull"
 exit /b 0

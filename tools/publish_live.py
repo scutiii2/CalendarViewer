@@ -9,10 +9,10 @@ source commit vX.Y.Z and the live commit live-vX.Y.Z, X.Y.Z being the VERSION fi
 A version already released with different live files is refused: bump VERSION, or
 add --replace to move that version's tags while it is not officially released yet.
 
-    python tools/publish_live.py              # publish main
-    python tools/publish_live.py --release    # publish and tag a release
-    python tools/publish_live.py --dry-run    # show what would be published
-    python tools/publish_live.py --source HEAD
+    uv run tools/publish_live.py              # publish main
+    uv run tools/publish_live.py --release    # publish and tag a release
+    uv run tools/publish_live.py --dry-run    # show what would be published
+    uv run tools/publish_live.py --source HEAD
 """
 
 from __future__ import annotations
