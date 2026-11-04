@@ -11,19 +11,23 @@
 <script src="/shared/search.js"></script>
 <script src="/shared/backup.js"></script>
 <script src="/shared/storage.js"></script>
+<script src="/shared/calendar-layout.js"></script>
 <script src="/js/backup-ui.js"></script>
 <link rel="stylesheet" href="/css/styles.css">
+<link rel="stylesheet" href="/css/responsive.css">
+<link rel="stylesheet" href="/css/assistant.css">
 </head>
 <body>
-<div class="unsupported" role="alert">
-  <h1>Landscape desktop view only</h1>
-  <p>Open this calendar on a wider screen, or rotate your device to landscape.</p>
-</div>
 <div class="app">
+<header class="compact-header">
+  <div class="compact-brand"><span aria-hidden="true">▦</span>Calendar Viewer</div>
+  <button class="menu-toggle" type="button" data-open-panel="calendars" aria-controls="sidebar" aria-expanded="false" aria-label="Calendars and settings"><span class="menu-icon" aria-hidden="true"><span></span><span></span><span></span></span></button>
+</header>
+<button class="sidebar-backdrop" type="button" aria-label="Close calendars and settings" hidden></button>
 <aside id="sidebar" aria-label="Calendars">
 <div class="sb-head">
-  <h1>Calendars</h1>
-  <button id="add-toggle" class="sb-icon" type="button" aria-expanded="false" aria-controls="add-card" aria-label="Add calendar" title="Add calendar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+  <button id="add-toggle" class="sb-icon" type="button" aria-expanded="false" aria-controls="add-card">Add Calendar</button>
+  <button id="sidebar-close" type="button" aria-label="Close calendars and settings">×</button>
 </div>
 <div id="add-card" class="add-card" hidden>
   <div class="sb-seg" role="group" aria-label="How to add a calendar">
@@ -68,6 +72,24 @@
 <div id="drop-overlay" class="drop-overlay" hidden>Drop .ics files to add</div>
 </aside>
 <main>
+<section class="compact-calendar" aria-label="Date navigation">
+  <div class="compact-date-row"><p id="compact-weekday"></p><div id="compact-title" class="compact-date-field">
+    <button type="button" data-date-picker-open aria-haspopup="dialog" aria-controls="date-picker" aria-expanded="false"><span class="date-input-value"></span><span aria-hidden="true">↕</span></button>
+  </div></div>
+  <div class="compact-controls"><div class="compact-arrows"><button id="compact-prev" type="button" aria-label="Previous week">‹</button><button id="compact-today" type="button">Today</button><button id="compact-next" type="button" aria-label="Next week">›</button></div><div id="compact-views" role="group" aria-label="Calendar view"></div></div>
+  <div class="date-wheel">
+    <div class="date-wheel-label" aria-hidden="true">SELECTED DATE</div>
+    <div class="date-wheel-pointer" aria-hidden="true"></div>
+    <div class="date-wheel-viewport">
+      <div id="compact-week" role="group" aria-label="Choose a date. Drag or scroll; the center date is selected on release." aria-describedby="date-wheel-preview"></div>
+      <span class="date-wheel-marker" aria-hidden="true"></span>
+      <button class="date-wheel-arrow wheel-previous" type="button" data-wheel-step="-1" aria-label="Previous day">‹</button>
+      <button class="date-wheel-arrow wheel-next" type="button" data-wheel-step="1" aria-label="Next day">›</button>
+    </div>
+    <div class="date-wheel-grip" aria-hidden="true"></div>
+    <p id="date-wheel-preview"></p>
+  </div>
+</section>
 <section id="search-tools" aria-label="Search events">
   <label for="event-search">Search events</label><input id="event-search" type="search" placeholder="Title or location" aria-describedby="search-status">
   <button id="clear-search" type="button" disabled>Clear</button><p id="search-status" role="status" aria-live="polite" aria-atomic="true"></p>
@@ -86,9 +108,18 @@
   </label>
   <button id="refresh" class="sync-refresh" type="button"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.9-3M4 5v4h4M4 13a8 8 0 0 0 14.9 3M20 19v-4h-4"/></svg>Refresh now</button>
 </div>
+<section id="compact-up-next" aria-label="Up next" hidden></section>
 <div id="cal"></div><div id="calendar-loading" aria-hidden="true" hidden></div>
 <section id="up-next" class="up-next" aria-label="Up next" hidden></section></main>
 </div>
+<dialog id="date-picker" aria-labelledby="date-picker-title">
+  <div class="date-picker-body">
+    <div class="date-picker-heading"><h2 id="date-picker-title">Jump to a date</h2><button type="button" class="date-picker-close" aria-label="Close date picker">×</button></div>
+    <div class="date-picker-labels" aria-hidden="true"><span>Month</span><span>Day</span><span>Year</span></div>
+    <div class="date-picker-wheels"><div class="date-picker-band" aria-hidden="true"></div><div class="date-picker-wheel" data-date-wheel="month" role="group" aria-label="Month"></div><div class="date-picker-wheel" data-date-wheel="day" role="group" aria-label="Day"></div><div class="date-picker-wheel" data-date-wheel="year" role="group" aria-label="Year"></div></div>
+    <div class="date-picker-footer"><span class="date-picker-summary" role="status" aria-live="polite"></span><button type="button" class="primary date-picker-apply">Apply date</button></div>
+  </div>
+</dialog>
 <dialog id="dlg" aria-labelledby="dt"><div id="dlg-bar" class="dlg-bar"></div><div class="dialog-body">
   <form method="dialog"><button class="icon-button dialog-close" aria-label="Close event details" title="Close"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></form>
   <div id="event-status" class="event-status"></div>
@@ -125,6 +156,21 @@
   <div class="backup-actions"><button id="backup-restore" type="button" class="primary" disabled>Replace with backup</button><button id="backup-cancel" type="button">Cancel</button></div>
 </div></dialog>
 
+<button id="assistant-open" type="button" class="primary" aria-haspopup="dialog" aria-controls="assistant-dialog" hidden>Ask calendar</button>
+<dialog id="assistant-dialog" aria-labelledby="assistant-title" aria-describedby="assistant-privacy"><div class="dialog-body">
+  <button id="assistant-close" type="button" class="icon-button dialog-close" aria-label="Close calendar assistant">×</button>
+  <h2 id="assistant-title">Calendar assistant</h2>
+  <p id="assistant-privacy"></p>
+  <p id="assistant-state" role="status" aria-live="polite"></p>
+  <div id="assistant-answer" role="status" aria-live="polite" aria-atomic="false"></div>
+  <div id="assistant-sources"></div>
+  <form id="assistant-form">
+    <label for="assistant-question">Ask about your calendar</label>
+    <textarea id="assistant-question" maxlength="2000" required placeholder="What is on my plate Thursday?"></textarea>
+    <div class="assistant-actions"><button id="assistant-send" type="submit" class="primary" disabled>Send question</button><button id="assistant-stop" type="button" disabled>Stop answer</button><button id="assistant-retry" type="button">Refresh status</button></div>
+  </form>
+</div></dialog>
+
 <script src="/js/core.js"></script>
 <script src="/js/state.js"></script>
 <script src="/js/sources-store.js"></script>
@@ -135,6 +181,9 @@
 <script src="/js/calendar.js"></script>
 <script src="/js/event-dialog.js"></script>
 <script src="/js/up-next.js"></script>
+<script src="/js/date-wheel.js"></script>
+<script src="/js/date-picker.js"></script>
+<script src="/js/responsive-ui.js"></script>
 <script src="/js/alert-sync.js"></script>
 <script src="/js/alert-editors.js"></script>
 <script src="/js/alert-delivery.js"></script>
@@ -145,6 +194,7 @@
 <script src="/js/theme.js"></script>
 <script src="/js/add-calendar.js"></script>
 <script src="/js/backup-glue.js"></script>
+<script src="/js/assistant-ui.js"></script>
 <script src="/js/main.js"></script>
 </body>
 </html>

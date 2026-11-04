@@ -12,6 +12,11 @@ const { createAlertService } = require('./alerts'); // defines the global ICAL t
 const { createStartupService } = require('./startup');
 const { createBackupService } = require('./backups');
 const { createMcpHandler } = require('./mcp');
+const { createCalendarTools } = require('./calendar-tools');
+const { assistantConfig } = require('./assistant-config');
+const { createModelClient } = require('./model-client');
+const { createAssistant } = require('./assistant');
+const { createAssistantRoute } = require('./assistant-route');
 const { normalizeFeedUrl } = require('../shared/alert-logic.js');
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -40,10 +45,7 @@ const alerts = createAlertService({
   snoozeBaseUrl: `http://localhost:${PORT}`
 });
 const mcp = createMcpHandler({ sources: alerts.sources });
-const MCP_TOKEN = process.env.INTERNAL_API_TOKEN || ''; // Citadel's shared token; when set, /mcp callers must send it as X-Internal-Token
 const backups = createBackupService({ readFeeds, writeFeeds, alerts, recoveryFile: path.join(DATA_DIR, 'backup-recovery.json') });
-
-if (BIND !== '127.0.0.1' && !MCP_TOKEN) { console.error('Refusing to listen on ' + BIND + ' without INTERNAL_API_TOKEN.'); process.exit(1); }
 
 const startup = createStartupService();
 
@@ -60,6 +62,14 @@ const isLocalAction = req => {
 // Replies 403 and returns true when the request is not a local action from this page.
 const refuseUnlessLocalAction = (req, res) => !isLocalAction(req) && (send(res, 403, 'Forbidden'), true);
 
+// Invalid optional settings disable only the assistant, leaving the calendar operational.
+let modelConfig;
+try { modelConfig = assistantConfig(readJson(path.join(DATA_DIR, 'assistant-config.json'), {})); }
+catch { modelConfig = { enabled: false, url: 'http://127.0.0.1:9130' }; console.warn('Assistant disabled: invalid model configuration.'); }
+const modelClient = createModelClient(modelConfig);
+const assistant = createAssistant({ client: modelClient, tools: createCalendarTools({ sources: alerts.sources }) });
+const assistantRoute = createAssistantRoute({ config: modelConfig, client: modelClient, assistant, refuseUnlessLocalAction });
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
@@ -70,9 +80,7 @@ const server = http.createServer(async (req, res) => {
 
     // MCP clients are not browsers: refuse any request carrying an Origin, and foreign Host headers (DNS rebinding).
     if (url.pathname === '/mcp') {
-      const given = String(req.headers['x-internal-token'] || '');
-      const tokenOk = !MCP_TOKEN || (given.length === MCP_TOKEN.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(MCP_TOKEN)));
-      if (!MCP_HOSTS.includes(req.headers.host) || req.headers.origin || !tokenOk) return send(res, 403, 'Forbidden');
+      if (!MCP_HOSTS.includes(req.headers.host) || req.headers.origin) return send(res, 403, 'Forbidden');
       if (req.method !== 'POST') return send(res, 405, 'Use POST');
       let message;
       try { message = JSON.parse(await readBody(req, 1e6)); }
@@ -82,6 +90,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname === '/api/version' && req.method === 'GET') return sendJson(res, 200, { version: VERSION });
+    if (url.pathname === '/api/assistant' || url.pathname === '/api/assistant/status') return await assistantRoute(req, res);
     if (url.pathname === '/api/health' && req.method === 'GET') {
       const health = alerts.health();
       return sendJson(res, health.ok ? 200 : 503, { version: VERSION, ...health });

@@ -2,6 +2,10 @@
 
 A read-only calendar that combines ICS links and imported `.ics` files in a Teams-inspired interface.
 
+The layout adapts to your screen: phones open a daily agenda, portrait and tablet screens open a three-day calendar, and wide landscape screens retain the full desktop layout. Drag, swipe, or scroll the date strip to roll through days; it snaps to the selected date. You can also tap a date or use the arrow keys, and switch between the grid and agenda with the view buttons. On compact screens, the menu button opens calendars and settings; tap an event for its details. Each layout remembers its own view preference, and rotating your device keeps the selected date.
+
+Click the date button to open the date picker. Scroll or drag its month, day, and year wheels, or use the up/down arrow keys, then press Apply date to jump to your selection. Closing the modal cancels pending changes. Today sits between the previous/next week arrows.
+
 ## Project layout
 
 ```text
@@ -11,9 +15,11 @@ scripts/            calendar.ps1 (start, restart, stop, startup, toast)
 tools/              deploy.bat (menu) and publish_live.py: put the app on the Zima server; make_zip.bat and make_zip.py: ZIP for a GitHub release
 Dockerfile, docker-compose.yml, .env.example   the server image
 src/server/         server.js (routes and startup), http.js, static-files.js, feed-fetch.js, feed-guard.js, alerts.js (background alerts),
-                    reminders.js (snoozes), backups.js, mcp.js (read-only MCP server), json-store.js (atomic JSON files), startup.js, powershell.js
-src/shared/         alert-logic.js, backup.js and search.js (page and server), storage.js (page only)
-src/web/            index.html, css/styles.css, js/ (the calendar page: one script per feature, loaded in order by index.html, main.js last)
+                    reminders.js (snoozes), backups.js, mcp.js (MCP adapter), calendar-tools.js (shared read-only tools),
+                    assistant.js (tool loop), model-client.js (MiniCPM), assistant-config.js, assistant-route.js,
+                    json-store.js (atomic JSON files), startup.js, powershell.js
+src/shared/         alert-logic.js, backup.js and search.js (page and server), storage.js (page only), assistant-dates.js and free-time.js (server calculations)
+src/web/            index.html, css/ (styles, responsive, assistant), js/ (one script per feature including assistant-ui.js, main.js last)
 vendor/             FullCalendar, ical.js and third-party licences
 test/               run with: node --test
 data/               your feeds and alert state (created at run time, private)
@@ -120,10 +126,30 @@ The interface follows your system's light/dark preference unless you pick Light 
 ## Privacy
 
 Calendar data stays on your machine. Remote feed links are saved in `data/feeds.json`, which the server creates as needed. Imported files, cached feed snapshots, and preferences are stored in your browser's local storage; use the same browser profile and address to retain them, because clearing site data removes them.
-The server listens only on `127.0.0.1` (the Docker image listens inside its container and refuses to start without `INTERNAL_API_TOKEN`). This application does not edit the source calendars.
-The [MCP endpoint](#mcp-server) returns event titles, locations and descriptions to any local program that calls it. Set `INTERNAL_API_TOKEN` to require a token.
+The server listens only on `127.0.0.1` (the Docker image listens inside its container). This application does not edit the source calendars.
+The [MCP endpoint](#mcp-server) returns event titles, locations and descriptions to any local program that calls it. The endpoint has no token, so keep the server on `127.0.0.1`.
 
-The app contacts only the calendar hosts you add (including redirects); opening a meeting or description link contacts its destination. All libraries are bundled locally: there is no CDN request and no telemetry. The server sends a Content Security Policy that allows only scripts and connections from its own origin.
+The app contacts the calendar hosts you add (including redirects) and, when you enable the assistant, the configured loopback model service. Opening a meeting or description link contacts its destination. All libraries are bundled locally: there is no CDN request and no telemetry. The server sends a Content Security Policy that allows only scripts and connections from its own origin.
+
+## Local AI assistant (optional)
+
+Off by default. Set `CALENDAR_ASSISTANT_ENABLED=1` in the server's process environment and restart the calendar server. **Ask calendar** opens a keyboard-accessible dialog on desktop, portrait and phone layouts. Try “what is on my plate Thursday?” or “find one free hour this week”. Each question is independent; the page keeps the latest answer only while open. Stop answer, Escape and Close cancel model work. Refresh status checks the service again.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `CALENDAR_ASSISTANT_ENABLED` | `0` | `1` enables chat. An explicit environment value overrides config. |
+| `MINICPM_URL` | `http://127.0.0.1:9130` | MiniCPM HTTP loopback origin. Environment overrides config; remote hosts, credentials and redirects are refused. |
+| `MINICPM_TOKEN` | unset | Optional `X-Internal-Token` credential, read only from the process environment. Never put it in application JSON config or `data/`. |
+
+Alternatively create private `data/assistant-config.json` with `{"enabled":true,"url":"http://127.0.0.1:9130"}`. Restart after changes. This application does not read an environment file itself; launch it with the variables already set. No model installation or startup is performed. In a container, loopback means inside that container; a separate model container is intentionally unsupported by this local-only feature.
+
+Questions and bounded calendar tool results (titles, dates, descriptions, locations, calendar names and potentially meeting links) go from this server to the configured model service. The dialog names that service and the **server timezone**, which determines relative dates and working hours. Model-service logging/retention is controlled by that service. Chat is not saved by CalendarViewer. Enabled calendars and imported files synced to the background server are available, just as for MCP; open the calendar page and let synchronization finish first.
+
+The tools compute relative dates and free time in code. Thursday means the next Thursday, including today; weeks begin Monday and range ends are exclusive. Availability defaults to weekdays 09:00–17:00; ask for other working hours explicitly, including overnight shifts. All-day events block availability. The assistant's hours are independent of page shading preferences. Results exclude past time and return up to 20 candidate slots.
+
+The assistant has read-only tools, no network tools, five model turns per question and four calls per turn. Dates span at most 93 days, tool lists sent to the model contain at most 30 records, and long fields are truncated. Source data is displayed with the answer. Small models can invent facts, misuse tools or exhaust their tokens; verify answers against these sources. Model links remain plain text; only validated source buttons navigate to known dates/events. After three consecutive model failures the client stays offline until the calendar server restarts. Disabled/offline chat does not affect calendars or alerts. Laya tagging and alert-rule drafting are not implemented.
+
+`GET /api/assistant/status` reports enabled/reachable/model; `POST /api/assistant` accepts `{"question":"…"}` and streams NDJSON. Both require the local Host/Origin checks and `X-Calendar-Action: 1`, so a page opened through a remote hostname cannot use chat. Questions are limited to 2000 characters and request bodies to 8KB; one answer runs at a time.
 
 ## Backup and restore
 
@@ -143,12 +169,11 @@ To bind it to Citadel's armory as an extension, add this to armory's `configs/co
 "calendar_viewer": {
   "label": "Calendar Viewer",
   "description": "Read-only view of your ICS calendars: events, overlaps and what is up next.",
-  "url": "http://127.0.0.1:3000/mcp",
-  "headers": { "X-Internal-Token": "${INTERNAL_API_TOKEN}" }
+  "url": "http://127.0.0.1:3000/mcp"
 }
 ```
 
-If `INTERNAL_API_TOKEN` is set in this server's environment, `/mcp` requires that value in `X-Internal-Token`; unset, it accepts any local caller. Requests with an `Origin` header (browsers) or a foreign `Host` are always refused. A custom `PORT` changes the URL. In the server container the URL is `http://calendar:3000/mcp` (see [Deploy to the server](#deploy-to-the-server)).
+`/mcp` accepts any local caller. Requests with an `Origin` header (browsers) or a foreign `Host` are always refused. A custom `PORT` changes the URL. In the server container the URL is `http://calendar:3000/mcp` (see [Deploy to the server](#deploy-to-the-server)).
 
 ## Deploy to the server
 
@@ -157,7 +182,7 @@ The Zima box runs the app in Docker beside Citadel, as Scribe and Bard do. Run `
 | Option | Action |
 | --- | --- |
 | 1 | **Publish:** copy only the files the image needs (`Dockerfile`, `docker-compose.yml`, `.env.example`, `VERSION`, `src/`, `vendor/`, `README.md`) to the `live` branch, without touching your working tree. Use it for test deploys. |
-| 2 | **Push .env:** send the git-ignored `.env` over ssh (copy `.env.example` and set `INTERNAL_API_TOKEN` to Citadel's value). |
+| 2 | **Push .env:** send the git-ignored `.env` over ssh (copy `.env.example` and adjust the port and bind address if needed). |
 | 3 | Both of the above. |
 | 4, 5 | Dry runs of publish and push. |
 | 6 | Copy the one-time `chown` command and open the server's web terminal, if the copy cannot write. |
@@ -169,7 +194,6 @@ Settings in the server's `.env` (see `.env.example`):
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `INTERNAL_API_TOKEN` | none, required | Citadel's shared token. Armory sends it as `X-Internal-Token`; the container refuses to start without it. |
 | `CALENDAR_PORT` | `3000` | Port the page is published on. |
 | `CALENDAR_BIND_HOST` | `127.0.0.1` | `127.0.0.1` keeps the page on the server (reach it through an ssh tunnel). `0.0.0.0` opens it to the network, for example as a ZimaOS app link. |
 
@@ -177,7 +201,7 @@ In the container:
 
 - Armory reaches the MCP endpoint at `http://calendar:3000/mcp`, with the header shown in [MCP server](#mcp-server). `CALENDAR_MCP_HOSTS` lists extra `Host` values accepted on `/mcp`; compose sets `calendar:3000`.
 - The page has no sign-in. With `CALENDAR_BIND_HOST=0.0.0.0`, anyone on the network can read the calendars, so use it only on a network you trust. Backup, restore and snooze buttons are refused unless the page is opened as `localhost` or `127.0.0.1`, so use an ssh tunnel for those: `ssh -L 3000:127.0.0.1:3000 lex@scutiserver1.local`.
-- The server refuses any `CALENDAR_BIND` other than `127.0.0.1` without `INTERNAL_API_TOKEN`. The image sets it to `0.0.0.0` inside the container.
+- The image sets `CALENDAR_BIND` to `0.0.0.0` inside the container. `/mcp` has no token, so anyone who can reach the published port can read events through it; keep `CALENDAR_BIND_HOST=127.0.0.1` unless the network is trusted.
 - A server that is not bound to `127.0.0.1` refuses calendar links that point to private, loopback or link-local addresses (including through redirects), so someone on the network cannot use it to reach other machines. Set `CALENDAR_ALLOW_PRIVATE_FEEDS=1` to allow them. The check resolves the name before fetching, so it is not proof against a DNS answer that changes in between.
 - The container healthcheck calls `/api/health`, which returns 503 when the alert loop has not completed a check for 2.5 minutes.
 - Data lives in the `calendar_data` volume. Windows notifications are not available there, so alerts fire only in the browser.
@@ -185,7 +209,7 @@ In the container:
 ### Releasing
 
 1. Run `tools\deploy.bat` and choose option **R**. It asks whether to **overwrite** the current version or go to the **next** one. Overwrite moves the current tags to the newest commits, so use it only before the version's official GitHub release. Next asks for a new number, commits it to `VERSION`, and releases that version.
-2. The release tags `vX.Y.Z` on `main` and `live-vX.Y.Z` on `live` and pushes both with the `live` branch. It refuses a version already released with different files, and when the live files are unchanged it only tags the current `live` tip. From a terminal, `python tools/publish_live.py --release` does the same, and `--replace` is the overwrite choice.
+2. The release tags `vX.Y.Z` on `main` and `live-vX.Y.Z` on `live` and pushes both with the `live` branch. It refuses a version already released with different files, and when the live files are unchanged it only tags the current `live` tip. From a terminal, `uv run tools/publish_live.py --release` does the same, and `--replace` is the overwrite choice.
 3. Run `tools\make_zip.bat`. It builds the desktop ZIP, selects it in Explorer and opens GitHub's new-release page for the tag, where you drag the ZIP on and publish.
 
 ## Package the application
@@ -193,7 +217,7 @@ In the container:
 Double-click `tools\make_zip.bat`, or run:
 
 ```bat
-python tools/make_zip.py
+uv run tools/make_zip.py
 ```
 
 The archive is created at `dist/CalendarViewer-<VERSION>.zip` (the number comes from `VERSION`) and includes everything outside the exclusions below: the app, launchers, `scripts/`, the Docker files, the tests, and this README.
@@ -207,10 +231,9 @@ Recipients should extract the ZIP before running the launchers and add their own
 - **Port already in use:** stop the previous calendar server or the other application using port 3000.
 - **Feed refresh fails:** confirm the server is running and the ICS link is accessible. Cached events remain available.
 - **Startup does not work:** check that the application folder has not moved and turn startup off and on again with `run.bat startup-off` and `run.bat startup-on`.
-- **Armory cannot connect to the MCP server (401/403):** the URL must use `127.0.0.1:3000` or `localhost:3000` (your port if changed) and the `X-Internal-Token` header must match this server's `INTERNAL_API_TOKEN`. Start this server before armory.
+- **Armory cannot connect to the MCP server (403):** the URL must use `127.0.0.1:3000` or `localhost:3000` (your port if changed), and the request must carry no `Origin` header. Start this server before armory.
 - **MCP tools miss an imported file:** open the calendar page once so it syncs imported files to the server.
 - **Custom port:** set the `PORT` environment variable before launching. Browser storage is separate for each port.
-- **Container exits at start:** `INTERNAL_API_TOKEN` is missing from the server's `.env`. Push it again (option 2) and rerun `docker compose up -d --build`.
 
 ## Accessibility
 

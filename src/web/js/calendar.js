@@ -39,16 +39,22 @@ const calendar = new FullCalendar.Calendar(calBox, {
   fixedWeekCount: false,
   firstDay: 0,
   slotDuration: '00:30:00',
+  slotEventOverlap: false, // overlapping meetings sit side by side instead of stacking over each other
   scrollTime: currentScrollTime(),
   allDaySlot: false, // switched on in eventsSet only when the visible range has all-day events
   headerToolbar: { left: 'today prev,next title', center: '', right: 'timeGridDay,timeGridWorkWeek,timeGridWeek,dayGridMonth,listWeek' },
   buttonText: { today: 'Today', timeGridDay: 'Day', timeGridWorkWeek: 'Work week', timeGridWeek: 'Week', dayGridMonth: 'Month', listWeek: 'Agenda' },
   noEventsContent: () => searchQuery.trim() ? 'No events match your search in this date range.' : 'No events in this date range.',
-  views: { timeGridWorkWeek: { type: 'timeGridWeek', weekends: false } },
+  views: {
+    timeGridWorkWeek: { type: 'timeGridWeek', weekends: false },
+    timeGridThreeDay: { type: 'timeGrid', duration: { days: 3 }, buttonText: '3 days' },
+    listDay: { buttonText: 'Agenda' }
+  },
   datesSet(arg) {
-    store.set(VIEW_KEY, arg.view.type);
+    store.set(CalendarLayout.viewKey(responsiveMode, VIEW_KEY), arg.view.type);
     if (arg.view.type.startsWith('timeGrid')) focusCurrentTime();
-    showUpNext(arg.view.type === 'timeGridDay');
+    showUpNext(responsiveMode === 'desktop' && arg.view.type === 'timeGridDay');
+    renderCompactCalendar();
   },
   eventsSet(events) {
     const hasAllDay = events.some(e => e.allDay);
@@ -64,7 +70,7 @@ const calendar = new FullCalendar.Calendar(calBox, {
     return { html: weekday + '<span class="header-date">' + arg.date.getDate() + '</span>' };
   },
   eventContent(arg) {
-    if (arg.view.type === 'listWeek') return agendaEventContent(arg);
+    if (arg.view.type.startsWith('list')) return agendaEventContent(arg);
     if (arg.view.type === 'dayGridMonth') {
       const chip = createEventCard(arg.event, 'month-chip');
       if (!arg.event.allDay && arg.timeText) chip.append(create('span', 'mc-time', arg.timeText));
@@ -82,8 +88,15 @@ const calendar = new FullCalendar.Calendar(calBox, {
       dots.setAttribute('aria-label', memberships.map(s => s.name).join(', '));
       card.append(dots);
     }
-    if (!arg.event.allDay && arg.timeText) card.append(create('div', 'event-time', arg.timeText));
-    appendConflictBadge(card, arg.event.extendedProps.conflicts);
+    // Cards show only the title and dots; the hover text carries the rest.
+    const conflicts = arg.event.extendedProps.conflicts;
+    if (conflicts?.length) card.classList.add('has-conflict');
+    card.title = [
+      arg.event.title,
+      !arg.event.allDay && arg.timeText,
+      memberships.length && memberships.map(s => s.name).join(', '),
+      conflicts?.length && 'Overlaps with: ' + conflicts.join(', ')
+    ].filter(Boolean).join('\n');
     return { domNodes: [card] };
   },
   events(info, ok, fail) {

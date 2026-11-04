@@ -24,6 +24,7 @@ railObserver.observe(calBox);
 railObserver.observe(syncStrip);
 
 function renderUpNext() {
+  renderCompactNext();
   if (upNextRail.hidden) return;
   const now = Date.now();
   let items = [];

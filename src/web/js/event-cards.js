@@ -17,8 +17,9 @@ function alertIndicator(key, sourceKeys, finishMs, cancelled = false) {
   return icon;
 }
 
-function createEventCard(event, className) {
-  const card = create('div', 'event-card' + (className ? ' ' + className : '') + (isCancelledTitle(event.title) ? ' canceled' : ''));
+function createEventCard(event, className, tag = 'div') {
+  const card = create(tag, 'event-card' + (className ? ' ' + className : '') + (isCancelledTitle(event.title) ? ' canceled' : ''));
+  if (tag === 'button') card.type = 'button';
   card.title = event.title;
   card.dataset.finish = eventFinishTime(event);
   card.classList.toggle('completed', Number(card.dataset.finish) <= Date.now());
@@ -46,14 +47,14 @@ function appendEventBell(parent, event) {
 
 function agendaEventContent(arg) {
   const event = arg.event, p = event.extendedProps;
-  const card = createEventCard(event, 'agenda-card');
-  const heading = create('div', 'agenda-heading');
+  const card = createEventCard(event, 'agenda-card', 'button');
+  const heading = create('span', 'agenda-heading');
   heading.append(create('span', 'event-title', event.title));
   appendConflictBadge(heading, p.conflicts);
   appendEventBell(heading, event);
   card.append(heading);
   const details = [p.location, p.sourceDetails.map(source => source.name).join(', ')].filter(Boolean);
-  if (details.length) card.append(create('div', 'agenda-detail', details.join(' · ')));
+  if (details.length) card.append(create('span', 'agenda-detail', details.join(' · ')));
   return { domNodes: [card] };
 }
 
