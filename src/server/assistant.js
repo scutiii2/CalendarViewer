@@ -29,7 +29,7 @@ function createAssistant({ client, tools, now = Date.now }) {
       signal?.throwIfAborted();
       // Do not release speculative prose before the first real calendar result.
       let streamed = '';
-      const reply = await client.chat({ messages, project: 'CalendarViewer', tools: tools.definitions.map(t => ({ name: t.name, description: t.description, parameters: { ...t.inputSchema, additionalProperties: false } })), thinking: false, temperature: 0, max_tokens: 1200, stream: true },
+      const reply = await client.chat({ messages, project: 'calendarviewer', tools: tools.definitions.map(t => ({ name: t.name, description: t.description, parameters: { ...t.inputSchema, additionalProperties: false } })), thinking: false, temperature: 0, max_tokens: 1200, stream: true },
         { signal, onContent: text => { if (grounded) { streamed += text; emit({ type: 'content', text }); } } });
       if (reply.finish_reason === 'length') throw new Error('The model ran out of tokens. Try a shorter question or smaller date range.');
       if (reply.finish_reason === 'stop') {
