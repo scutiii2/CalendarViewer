@@ -24,7 +24,9 @@ function applyBackupClientState(backup, { validateOnly = false } = {}) {
     [HOURS_KEY]: JSON.stringify(p.workingHours),
     [AUTO_REFRESH_KEY]: String(p.autoRefreshMinutes),
     [HIDE_CANCELLED_KEY]: String(p.hideCancelled),
-    [VIEW_KEY]: p.view
+    [VIEW_KEY]: CalendarLayout.view('desktop', p.view),
+    [CalendarLayout.viewKey('portrait', VIEW_KEY)]: CalendarLayout.view('portrait', p.view),
+    [CalendarLayout.viewKey('mobile', VIEW_KEY)]: CalendarLayout.view('mobile', p.view)
   }, validateOnly);
 }
 

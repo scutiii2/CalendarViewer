@@ -1,6 +1,7 @@
 // Last page script: every file above has loaded, so the calendar can render and the saved state can load.
 calendar.render();
 placeSyncStrip();
+initResponsiveUI();
 restoreLocalSources();
 restoreFeedCache();
 renderSources();

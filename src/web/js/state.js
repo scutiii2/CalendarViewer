@@ -9,9 +9,9 @@ const sources = []; // {id, name, color, enabled, events: ICAL.Event[]}
 let nextId = 1;
 const HIDE_CANCELLED_KEY = 'ics-calendar-viewer.hideCancelled.v1';
 const VIEW_KEY = 'ics-calendar-viewer.view.v1';
-let initialView = 'timeGridWorkWeek';
-const savedView = store.get(VIEW_KEY);
-if (VIEWS.includes(savedView)) initialView = savedView;
+let responsiveMode = typeof window === 'undefined' ? 'desktop' : CalendarLayout.mode(window.innerWidth, window.innerHeight);
+const savedView = store.get(CalendarLayout.viewKey(responsiveMode, VIEW_KEY));
+const initialView = CalendarLayout.view(responsiveMode, savedView);
 let searchQuery = '';
 const searchInput = document.getElementById('event-search');
 const clearSearch = document.getElementById('clear-search');

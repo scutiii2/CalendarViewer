@@ -45,11 +45,16 @@ const calendar = new FullCalendar.Calendar(calBox, {
   headerToolbar: { left: 'today prev,next title', center: '', right: 'timeGridDay,timeGridWorkWeek,timeGridWeek,dayGridMonth,listWeek' },
   buttonText: { today: 'Today', timeGridDay: 'Day', timeGridWorkWeek: 'Work week', timeGridWeek: 'Week', dayGridMonth: 'Month', listWeek: 'Agenda' },
   noEventsContent: () => searchQuery.trim() ? 'No events match your search in this date range.' : 'No events in this date range.',
-  views: { timeGridWorkWeek: { type: 'timeGridWeek', weekends: false } },
+  views: {
+    timeGridWorkWeek: { type: 'timeGridWeek', weekends: false },
+    timeGridThreeDay: { type: 'timeGrid', duration: { days: 3 }, buttonText: '3 days' },
+    listDay: { buttonText: 'Agenda' }
+  },
   datesSet(arg) {
-    store.set(VIEW_KEY, arg.view.type);
+    store.set(CalendarLayout.viewKey(responsiveMode, VIEW_KEY), arg.view.type);
     if (arg.view.type.startsWith('timeGrid')) focusCurrentTime();
-    showUpNext(arg.view.type === 'timeGridDay');
+    showUpNext(responsiveMode === 'desktop' && arg.view.type === 'timeGridDay');
+    renderCompactCalendar();
   },
   eventsSet(events) {
     const hasAllDay = events.some(e => e.allDay);
@@ -65,7 +70,7 @@ const calendar = new FullCalendar.Calendar(calBox, {
     return { html: weekday + '<span class="header-date">' + arg.date.getDate() + '</span>' };
   },
   eventContent(arg) {
-    if (arg.view.type === 'listWeek') return agendaEventContent(arg);
+    if (arg.view.type.startsWith('list')) return agendaEventContent(arg);
     if (arg.view.type === 'dayGridMonth') {
       const chip = createEventCard(arg.event, 'month-chip');
       if (!arg.event.allDay && arg.timeText) chip.append(create('span', 'mc-time', arg.timeText));

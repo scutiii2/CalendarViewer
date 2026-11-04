@@ -7,7 +7,7 @@ const DELIVERY_WINDOW_MS = 120000;
 const DAY_MS = 86400000;
 const WEEK_MS = 7 * DAY_MS;
 const DEFAULT_SOURCE_COLOR = '#5b5fc7';
-const VIEWS = ['timeGridDay', 'timeGridWorkWeek', 'timeGridWeek', 'dayGridMonth', 'listWeek'];
+const VIEWS = ['timeGridDay', 'timeGridWorkWeek', 'timeGridWeek', 'dayGridMonth', 'listWeek', 'timeGridThreeDay', 'listDay'];
 const eventSourceKeys = p => p.sourceDetails.map(s => s.key).filter(Boolean);
 const eventAlertKey = (uid, title) => uid || 'fb:' + title;
 const URL_PATTERN = /https?:\/\/[^\s<>"']+/gi;
