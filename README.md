@@ -126,8 +126,8 @@ The interface follows your system's light/dark preference unless you pick Light 
 ## Privacy
 
 Calendar data stays on your machine. Remote feed links are saved in `data/feeds.json`, which the server creates as needed. Imported files, cached feed snapshots, and preferences are stored in your browser's local storage; use the same browser profile and address to retain them, because clearing site data removes them.
-The server listens only on `127.0.0.1` (the Docker image listens inside its container and refuses to start without `INTERNAL_API_TOKEN`). This application does not edit the source calendars.
-The [MCP endpoint](#mcp-server) returns event titles, locations and descriptions to any local program that calls it. Set `INTERNAL_API_TOKEN` to require a token.
+The server listens only on `127.0.0.1` (the Docker image listens inside its container). This application does not edit the source calendars.
+The [MCP endpoint](#mcp-server) returns event titles, locations and descriptions to any local program that calls it. The endpoint has no token, so keep the server on `127.0.0.1`.
 
 The app contacts the calendar hosts you add (including redirects) and, when you enable the assistant, the configured loopback model service. Opening a meeting or description link contacts its destination. All libraries are bundled locally: there is no CDN request and no telemetry. The server sends a Content Security Policy that allows only scripts and connections from its own origin.
 
@@ -169,12 +169,11 @@ To bind it to Citadel's armory as an extension, add this to armory's `configs/co
 "calendar_viewer": {
   "label": "Calendar Viewer",
   "description": "Read-only view of your ICS calendars: events, overlaps and what is up next.",
-  "url": "http://127.0.0.1:3000/mcp",
-  "headers": { "X-Internal-Token": "${INTERNAL_API_TOKEN}" }
+  "url": "http://127.0.0.1:3000/mcp"
 }
 ```
 
-If `INTERNAL_API_TOKEN` is set in this server's environment, `/mcp` requires that value in `X-Internal-Token`; unset, it accepts any local caller. Requests with an `Origin` header (browsers) or a foreign `Host` are always refused. A custom `PORT` changes the URL. In the server container the URL is `http://calendar:3000/mcp` (see [Deploy to the server](#deploy-to-the-server)).
+`/mcp` accepts any local caller. Requests with an `Origin` header (browsers) or a foreign `Host` are always refused. A custom `PORT` changes the URL. In the server container the URL is `http://calendar:3000/mcp` (see [Deploy to the server](#deploy-to-the-server)).
 
 ## Deploy to the server
 
@@ -183,7 +182,7 @@ The Zima box runs the app in Docker beside Citadel, as Scribe and Bard do. Run `
 | Option | Action |
 | --- | --- |
 | 1 | **Publish:** copy only the files the image needs (`Dockerfile`, `docker-compose.yml`, `.env.example`, `VERSION`, `src/`, `vendor/`, `README.md`) to the `live` branch, without touching your working tree. Use it for test deploys. |
-| 2 | **Push .env:** send the git-ignored `.env` over ssh (copy `.env.example` and set `INTERNAL_API_TOKEN` to Citadel's value). |
+| 2 | **Push .env:** send the git-ignored `.env` over ssh (copy `.env.example` and adjust the port and bind address if needed). |
 | 3 | Both of the above. |
 | 4, 5 | Dry runs of publish and push. |
 | 6 | Copy the one-time `chown` command and open the server's web terminal, if the copy cannot write. |
@@ -195,7 +194,6 @@ Settings in the server's `.env` (see `.env.example`):
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `INTERNAL_API_TOKEN` | none, required | Citadel's shared token. Armory sends it as `X-Internal-Token`; the container refuses to start without it. |
 | `CALENDAR_PORT` | `3000` | Port the page is published on. |
 | `CALENDAR_BIND_HOST` | `127.0.0.1` | `127.0.0.1` keeps the page on the server (reach it through an ssh tunnel). `0.0.0.0` opens it to the network, for example as a ZimaOS app link. |
 
@@ -203,7 +201,7 @@ In the container:
 
 - Armory reaches the MCP endpoint at `http://calendar:3000/mcp`, with the header shown in [MCP server](#mcp-server). `CALENDAR_MCP_HOSTS` lists extra `Host` values accepted on `/mcp`; compose sets `calendar:3000`.
 - The page has no sign-in. With `CALENDAR_BIND_HOST=0.0.0.0`, anyone on the network can read the calendars, so use it only on a network you trust. Backup, restore and snooze buttons are refused unless the page is opened as `localhost` or `127.0.0.1`, so use an ssh tunnel for those: `ssh -L 3000:127.0.0.1:3000 lex@scutiserver1.local`.
-- The server refuses any `CALENDAR_BIND` other than `127.0.0.1` without `INTERNAL_API_TOKEN`. The image sets it to `0.0.0.0` inside the container.
+- The image sets `CALENDAR_BIND` to `0.0.0.0` inside the container. `/mcp` has no token, so anyone who can reach the published port can read events through it; keep `CALENDAR_BIND_HOST=127.0.0.1` unless the network is trusted.
 - A server that is not bound to `127.0.0.1` refuses calendar links that point to private, loopback or link-local addresses (including through redirects), so someone on the network cannot use it to reach other machines. Set `CALENDAR_ALLOW_PRIVATE_FEEDS=1` to allow them. The check resolves the name before fetching, so it is not proof against a DNS answer that changes in between.
 - The container healthcheck calls `/api/health`, which returns 503 when the alert loop has not completed a check for 2.5 minutes.
 - Data lives in the `calendar_data` volume. Windows notifications are not available there, so alerts fire only in the browser.
@@ -233,10 +231,9 @@ Recipients should extract the ZIP before running the launchers and add their own
 - **Port already in use:** stop the previous calendar server or the other application using port 3000.
 - **Feed refresh fails:** confirm the server is running and the ICS link is accessible. Cached events remain available.
 - **Startup does not work:** check that the application folder has not moved and turn startup off and on again with `run.bat startup-off` and `run.bat startup-on`.
-- **Armory cannot connect to the MCP server (401/403):** the URL must use `127.0.0.1:3000` or `localhost:3000` (your port if changed) and the `X-Internal-Token` header must match this server's `INTERNAL_API_TOKEN`. Start this server before armory.
+- **Armory cannot connect to the MCP server (403):** the URL must use `127.0.0.1:3000` or `localhost:3000` (your port if changed), and the request must carry no `Origin` header. Start this server before armory.
 - **MCP tools miss an imported file:** open the calendar page once so it syncs imported files to the server.
 - **Custom port:** set the `PORT` environment variable before launching. Browser storage is separate for each port.
-- **Container exits at start:** `INTERNAL_API_TOKEN` is missing from the server's `.env`. Push it again (option 2) and rerun `docker compose up -d --build`.
 
 ## Accessibility
 

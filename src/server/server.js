@@ -45,10 +45,7 @@ const alerts = createAlertService({
   snoozeBaseUrl: `http://localhost:${PORT}`
 });
 const mcp = createMcpHandler({ sources: alerts.sources });
-const MCP_TOKEN = process.env.INTERNAL_API_TOKEN || ''; // Citadel's shared token; when set, /mcp callers must send it as X-Internal-Token
 const backups = createBackupService({ readFeeds, writeFeeds, alerts, recoveryFile: path.join(DATA_DIR, 'backup-recovery.json') });
-
-if (BIND !== '127.0.0.1' && !MCP_TOKEN) { console.error('Refusing to listen on ' + BIND + ' without INTERNAL_API_TOKEN.'); process.exit(1); }
 
 const startup = createStartupService();
 
@@ -83,9 +80,7 @@ const server = http.createServer(async (req, res) => {
 
     // MCP clients are not browsers: refuse any request carrying an Origin, and foreign Host headers (DNS rebinding).
     if (url.pathname === '/mcp') {
-      const given = String(req.headers['x-internal-token'] || '');
-      const tokenOk = !MCP_TOKEN || (given.length === MCP_TOKEN.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(MCP_TOKEN)));
-      if (!MCP_HOSTS.includes(req.headers.host) || req.headers.origin || !tokenOk) return send(res, 403, 'Forbidden');
+      if (!MCP_HOSTS.includes(req.headers.host) || req.headers.origin) return send(res, 403, 'Forbidden');
       if (req.method !== 'POST') return send(res, 405, 'Use POST');
       let message;
       try { message = JSON.parse(await readBody(req, 1e6)); }

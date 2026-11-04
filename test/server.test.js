@@ -112,15 +112,10 @@ test('server serves the web files safely and guards the startup endpoint', async
   assert.equal((await request('POST', '/mcp', json, JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }))).status, 202);
 });
 
-test('server refuses a non-loopback bind without a token and accepts configured MCP hosts', async t => {
-  const env = { ...process.env, CALENDAR_BIND: '0.0.0.0', PORT: '3988', CALENDAR_DATA_DIR: tempData() };
-  delete env.INTERNAL_API_TOKEN;
-  const refused = spawn(process.execPath, [script], { env, stdio: 'pipe' });
-  assert.equal(await new Promise(resolve => refused.on('exit', resolve)), 1);
-
-  await startServer(t, { ...env, INTERNAL_API_TOKEN: 'secret', CALENDAR_MCP_HOSTS: 'calendar:3988' });
+test('server accepts configured MCP hosts only', async t => {
+  await startServer(t, { CALENDAR_BIND: '0.0.0.0', PORT: '3988', CALENDAR_MCP_HOSTS: 'calendar:3988' });
   const request = requester(3988);
-  const status = host => request('POST', '/mcp', { Host: host, 'X-Internal-Token': 'secret' }, '{"jsonrpc":"2.0","method":"notifications/initialized"}').then(r => r.status);
+  const status = host => request('POST', '/mcp', { Host: host },'{"jsonrpc":"2.0","method":"notifications/initialized"}').then(r => r.status);
   assert.equal(await status('calendar:3988'), 202);
   assert.equal(await status('evil.example:3988'), 403);
 });
@@ -181,7 +176,7 @@ test('feed fetches follow redirects, and a network-facing server refuses private
   assert.equal(looped.status, 502);
   assert.match(looped.data, /too many times/);
 
-  await startServer(t, { PORT: '3986', CALENDAR_BIND: '0.0.0.0', INTERNAL_API_TOKEN: 'secret' });
+  await startServer(t, { PORT: '3986', CALENDAR_BIND: '0.0.0.0' });
   const exposed = await fetchVia(requester(3986), '/new');
   assert.equal(exposed.status, 502);
   assert.match(exposed.data, /private network/);

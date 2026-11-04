@@ -1,6 +1,6 @@
 # ICS Calendar Viewer: web page plus read-only MCP server.
 # Start:  docker compose up -d --build        (armory reaches it at http://calendar:3000/mcp)
-# Needs a .env next to this file with INTERNAL_API_TOKEN (same value as Citadel's); see .env.example.
+# Optional .env next to this file sets the published port and bind address; see .env.example.
 
 name: calendar
 
@@ -9,7 +9,6 @@ services:
     build: .
     restart: unless-stopped
     environment:
-      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in .env}
       CALENDAR_MCP_HOSTS: calendar:3000
     ports:
       - "${CALENDAR_BIND_HOST:-127.0.0.1}:${CALENDAR_PORT:-3000}:3000"
