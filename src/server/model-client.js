@@ -38,13 +38,13 @@ async function readReply(response, streaming, onContent) {
 }
 function createModelClient({ url = 'http://127.0.0.1:9130', token = '', fetch: fetchImpl = global.fetch, timeoutMs = 90000, pauseMs = 250 } = {}) {
   let failures = 0;
-  async function request(path, payload, { signal, onContent = () => {} } = {}) {
+  async function request(path, payload, { signal, onContent = () => {}, deadlineMs = timeoutMs } = {}) {
     if (failures >= 3) throw new ServiceUnreachable('Assistant offline until the calendar server restarts.');
     signal?.throwIfAborted();
     const abort = new AbortController();
     const cancel = () => abort.abort(signal.reason);
     signal?.addEventListener('abort', cancel, { once: true });
-    const timer = setTimeout(() => abort.abort(), timeoutMs);
+    const timer = setTimeout(() => abort.abort(), deadlineMs);
     try {
       for (let attempt = 0; ; attempt++) {
         let response;
@@ -72,7 +72,7 @@ function createModelClient({ url = 'http://127.0.0.1:9130', token = '', fetch: f
   }
   return {
     get offline() { return failures >= 3; },
-    health: options => request('/health', undefined, options),
+    health: options => request('/health', undefined, { deadlineMs: Math.min(timeoutMs, 3000), ...options }),
     chat: (payload, options) => {
       if (payload.tools !== undefined && payload.schema !== undefined) return Promise.reject(new Error('tools and schema cannot be combined.'));
       return request('/v1/chat', payload, options);

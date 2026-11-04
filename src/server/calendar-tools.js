@@ -2,7 +2,7 @@
 const logic = require('../shared/alert-logic.js');
 const Search = require('../shared/search.js');
 
-const { resolveDateRange } = require('../shared/assistant-dates');
+const { resolveDate, resolveDateRange } = require('../shared/assistant-dates');
 const { findFreeTime } = require('../shared/free-time');
 const { DAY_MS, WEEK_MS } = logic;
 const MAX_SPAN_MS = 93 * DAY_MS;
@@ -10,8 +10,8 @@ const MAX_EVENTS = 200;
 const fail = message => { throw Object.assign(new Error(message), { tool: true }); };
 
 const RANGE = {
-  start: { type: 'string', description: 'ISO 8601 start of the range. Default: now.' },
-  end: { type: 'string', description: 'ISO 8601 end of the range. Default: 7 days after start. At most 93 days.' }
+  start: { type: 'string', description: 'ISO date or today, tomorrow, thursday, this week, next week. A date or weekday selects one day; a week selects seven days. Default: now.' },
+  end: { type: 'string', description: 'Exclusive ISO end, optional. Omit for a relative day/week. Timestamp ranges default to seven days, at most 93 days.' }
 };
 const TOOLS = [
   { name: 'list_calendars', description: 'List the linked and imported calendars with their visibility and event counts.', inputSchema: { type: 'object', properties: {} } },
@@ -27,13 +27,14 @@ const TOOLS = [
 function createCalendarTools({ sources, now = Date.now }) {
   function range(args, defaultFrom = now(), defaultSpan = WEEK_MS) {
     if (args.start !== undefined && !/^\d{4}-\d{2}-\d{2}T/.test(args.start)) return resolveDateRange(args.start, args.end, now());
-    const start = args.start === undefined ? defaultFrom : +require('../shared/assistant-dates').resolveDate(args.start, now());
-    const end = args.end === undefined ? start + defaultSpan : Date.parse(args.end);
+    const start = args.start === undefined ? defaultFrom : +resolveDate(args.start, now());
+    const end = args.end === undefined ? start + defaultSpan : +resolveDate(args.end, now());
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) fail('start and end must be ISO 8601 dates with end after start.');
     if (end - start > MAX_SPAN_MS) fail('The range may be at most 93 days.');
     return [new Date(start), new Date(end)];
   }
-  const merged = (list, from, to) => logic.markConflicts(logic.expandSources(list, from, to))
+  const merged = (list, from, to) => logic.markConflicts(logic.expandSources(list, from, to)
+    .filter(e => !logic.isCancelledTitle(e.title) && e.start < to && (e.end > e.start ? e.end > from : e.start >= from)))
     .sort((a, b) => a.start - b.start);
   const summary = e => {
     const p = e.extendedProps;

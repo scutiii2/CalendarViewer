@@ -41,3 +41,22 @@ test('unreachable, health reset, caller cancellation and tools/schema exclusion'
   await assert.rejects(client.health({ signal: c.signal }), e => e.name === 'AbortError');
   assert.equal(client.offline, false);
 });
+
+test('service statuses are preserved, HTTP timeout is bounded and cancellation does not open circuit', async () => {
+  for (const status of [401, 422, 502, 504]) {
+    let calls = 0;
+    const client = createModelClient({ fetch: async () => { calls++; return new Response('{"detail":{"message":"service detail"}}', { status }); } });
+    await assert.rejects(client.health(), e => e.status === status && e.detail === 'service detail');
+    assert.equal(calls, 1);
+  }
+  const waitingFetch = (url, { signal }) => new Promise((resolve, reject) => signal.addEventListener('abort', () => reject(Object.assign(new Error('abort'), { name: 'AbortError' })), { once: true }));
+  const timed = createModelClient({ fetch: waitingFetch, timeoutMs: 10 });
+  await assert.rejects(timed.health(), /unreachable/i);
+  const stopped = createModelClient({ fetch: waitingFetch });
+  for (let i = 0; i < 4; i++) {
+    const controller = new AbortController();
+    const result = stopped.health({ signal: controller.signal }); controller.abort();
+    await assert.rejects(result, e => e.name === 'AbortError');
+  }
+  assert.equal(stopped.offline, false);
+});

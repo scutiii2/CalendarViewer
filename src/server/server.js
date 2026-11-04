@@ -12,6 +12,11 @@ const { createAlertService } = require('./alerts'); // defines the global ICAL t
 const { createStartupService } = require('./startup');
 const { createBackupService } = require('./backups');
 const { createMcpHandler } = require('./mcp');
+const { createCalendarTools } = require('./calendar-tools');
+const { assistantConfig } = require('./assistant-config');
+const { createModelClient } = require('./model-client');
+const { createAssistant } = require('./assistant');
+const { createAssistantRoute } = require('./assistant-route');
 const { normalizeFeedUrl } = require('../shared/alert-logic.js');
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -60,6 +65,14 @@ const isLocalAction = req => {
 // Replies 403 and returns true when the request is not a local action from this page.
 const refuseUnlessLocalAction = (req, res) => !isLocalAction(req) && (send(res, 403, 'Forbidden'), true);
 
+// Invalid optional settings disable only the assistant, leaving the calendar operational.
+let modelConfig;
+try { modelConfig = assistantConfig(readJson(path.join(DATA_DIR, 'assistant-config.json'), {})); }
+catch { modelConfig = { enabled: false, url: 'http://127.0.0.1:9130' }; console.warn('Assistant disabled: invalid model configuration.'); }
+const modelClient = createModelClient(modelConfig);
+const assistant = createAssistant({ client: modelClient, tools: createCalendarTools({ sources: alerts.sources }) });
+const assistantRoute = createAssistantRoute({ config: modelConfig, client: modelClient, assistant, refuseUnlessLocalAction });
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
@@ -82,6 +95,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (url.pathname === '/api/version' && req.method === 'GET') return sendJson(res, 200, { version: VERSION });
+    if (url.pathname === '/api/assistant' || url.pathname === '/api/assistant/status') return await assistantRoute(req, res);
     if (url.pathname === '/api/health' && req.method === 'GET') {
       const health = alerts.health();
       return sendJson(res, health.ok ? 200 : 503, { version: VERSION, ...health });

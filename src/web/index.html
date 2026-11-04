@@ -15,6 +15,7 @@
 <script src="/js/backup-ui.js"></script>
 <link rel="stylesheet" href="/css/styles.css">
 <link rel="stylesheet" href="/css/responsive.css">
+<link rel="stylesheet" href="/css/assistant.css">
 </head>
 <body>
 <div class="app">
@@ -155,6 +156,21 @@
   <div class="backup-actions"><button id="backup-restore" type="button" class="primary" disabled>Replace with backup</button><button id="backup-cancel" type="button">Cancel</button></div>
 </div></dialog>
 
+<button id="assistant-open" type="button" class="primary" aria-haspopup="dialog" aria-controls="assistant-dialog" hidden>Ask calendar</button>
+<dialog id="assistant-dialog" aria-labelledby="assistant-title" aria-describedby="assistant-privacy"><div class="dialog-body">
+  <button id="assistant-close" type="button" class="icon-button dialog-close" aria-label="Close calendar assistant">×</button>
+  <h2 id="assistant-title">Calendar assistant</h2>
+  <p id="assistant-privacy"></p>
+  <p id="assistant-state" role="status" aria-live="polite"></p>
+  <div id="assistant-answer" role="status" aria-live="polite" aria-atomic="false"></div>
+  <div id="assistant-sources"></div>
+  <form id="assistant-form">
+    <label for="assistant-question">Ask about your calendar</label>
+    <textarea id="assistant-question" maxlength="2000" required placeholder="What is on my plate Thursday?"></textarea>
+    <div class="assistant-actions"><button id="assistant-send" type="submit" class="primary" disabled>Send question</button><button id="assistant-stop" type="button" disabled>Stop answer</button><button id="assistant-retry" type="button">Refresh status</button></div>
+  </form>
+</div></dialog>
+
 <script src="/js/core.js"></script>
 <script src="/js/state.js"></script>
 <script src="/js/sources-store.js"></script>
@@ -178,6 +194,7 @@
 <script src="/js/theme.js"></script>
 <script src="/js/add-calendar.js"></script>
 <script src="/js/backup-glue.js"></script>
+<script src="/js/assistant-ui.js"></script>
 <script src="/js/main.js"></script>
 </body>
 </html>

@@ -15,9 +15,11 @@ scripts/            calendar.ps1 (start, restart, stop, startup, toast)
 tools/              deploy.bat (menu) and publish_live.py: put the app on the Zima server; make_zip.bat and make_zip.py: ZIP for a GitHub release
 Dockerfile, docker-compose.yml, .env.example   the server image
 src/server/         server.js (routes and startup), http.js, static-files.js, feed-fetch.js, feed-guard.js, alerts.js (background alerts),
-                    reminders.js (snoozes), backups.js, mcp.js (read-only MCP server), json-store.js (atomic JSON files), startup.js, powershell.js
-src/shared/         alert-logic.js, backup.js and search.js (page and server), storage.js (page only)
-src/web/            index.html, css/styles.css, js/ (the calendar page: one script per feature, loaded in order by index.html, main.js last)
+                    reminders.js (snoozes), backups.js, mcp.js (MCP adapter), calendar-tools.js (shared read-only tools),
+                    assistant.js (tool loop), model-client.js (MiniCPM), assistant-config.js, assistant-route.js,
+                    json-store.js (atomic JSON files), startup.js, powershell.js
+src/shared/         alert-logic.js, backup.js and search.js (page and server), storage.js (page only), assistant-dates.js and free-time.js (server calculations)
+src/web/            index.html, css/ (styles, responsive, assistant), js/ (one script per feature including assistant-ui.js, main.js last)
 vendor/             FullCalendar, ical.js and third-party licences
 test/               run with: node --test
 data/               your feeds and alert state (created at run time, private)
@@ -127,7 +129,27 @@ Calendar data stays on your machine. Remote feed links are saved in `data/feeds.
 The server listens only on `127.0.0.1` (the Docker image listens inside its container and refuses to start without `INTERNAL_API_TOKEN`). This application does not edit the source calendars.
 The [MCP endpoint](#mcp-server) returns event titles, locations and descriptions to any local program that calls it. Set `INTERNAL_API_TOKEN` to require a token.
 
-The app contacts only the calendar hosts you add (including redirects); opening a meeting or description link contacts its destination. All libraries are bundled locally: there is no CDN request and no telemetry. The server sends a Content Security Policy that allows only scripts and connections from its own origin.
+The app contacts the calendar hosts you add (including redirects) and, when you enable the assistant, the configured loopback model service. Opening a meeting or description link contacts its destination. All libraries are bundled locally: there is no CDN request and no telemetry. The server sends a Content Security Policy that allows only scripts and connections from its own origin.
+
+## Local AI assistant (optional)
+
+Off by default. Set `CALENDAR_ASSISTANT_ENABLED=1` in the server's process environment and restart the calendar server. **Ask calendar** opens a keyboard-accessible dialog on desktop, portrait and phone layouts. Try “what is on my plate Thursday?” or “find one free hour this week”. Each question is independent; the page keeps the latest answer only while open. Stop answer, Escape and Close cancel model work. Refresh status checks the service again.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `CALENDAR_ASSISTANT_ENABLED` | `0` | `1` enables chat. An explicit environment value overrides config. |
+| `MINICPM_URL` | `http://127.0.0.1:9130` | MiniCPM HTTP loopback origin. Environment overrides config; remote hosts, credentials and redirects are refused. |
+| `MINICPM_TOKEN` | unset | Optional `X-Internal-Token` credential, read only from the process environment. Never put it in application JSON config or `data/`. |
+
+Alternatively create private `data/assistant-config.json` with `{"enabled":true,"url":"http://127.0.0.1:9130"}`. Restart after changes. This application does not read an environment file itself; launch it with the variables already set. No model installation or startup is performed. In a container, loopback means inside that container; a separate model container is intentionally unsupported by this local-only feature.
+
+Questions and bounded calendar tool results (titles, dates, descriptions, locations, calendar names and potentially meeting links) go from this server to the configured model service. The dialog names that service and the **server timezone**, which determines relative dates and working hours. Model-service logging/retention is controlled by that service. Chat is not saved by CalendarViewer. Enabled calendars and imported files synced to the background server are available, just as for MCP; open the calendar page and let synchronization finish first.
+
+The tools compute relative dates and free time in code. Thursday means the next Thursday, including today; weeks begin Monday and range ends are exclusive. Availability defaults to weekdays 09:00–17:00; ask for other working hours explicitly, including overnight shifts. All-day events block availability. The assistant's hours are independent of page shading preferences. Results exclude past time and return up to 20 candidate slots.
+
+The assistant has read-only tools, no network tools, five model turns per question and four calls per turn. Dates span at most 93 days, tool lists sent to the model contain at most 30 records, and long fields are truncated. Source data is displayed with the answer. Small models can invent facts, misuse tools or exhaust their tokens; verify answers against these sources. Model links remain plain text; only validated source buttons navigate to known dates/events. After three consecutive model failures the client stays offline until the calendar server restarts. Disabled/offline chat does not affect calendars or alerts. Laya tagging and alert-rule drafting are not implemented.
+
+`GET /api/assistant/status` reports enabled/reachable/model; `POST /api/assistant` accepts `{"question":"…"}` and streams NDJSON. Both require the local Host/Origin checks and `X-Calendar-Action: 1`, so a page opened through a remote hostname cannot use chat. Questions are limited to 2000 characters and request bodies to 8KB; one answer runs at a time.
 
 ## Backup and restore
 
